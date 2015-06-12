@@ -1,0 +1,86 @@
+<section>
+    <button type="button" onClick="ping();">Start PHPH</button>
+<!--
+    <label><input type=checkbox name=nojanus>Nojanus</label>
+    <label><input type=checkbox name=forcerefresh>Forcerefresh</label>
+    <label><input type=checkbox name=silent>Silent</label>
+ -->
+</section>
+<section>
+    <pre id="summary">Streaming log from server...</pre>
+    <pre id="content"><?= $content ?></pre>
+</section>
+<script>
+    var socket = new EventSource("/tail/6vrxmC81mOP3oCDkW2oWSv5E");
+    var content = document.getElementById('content');
+    var summary = document.getElementById('summary');
+    var unfilteredcontent;
+
+    // PHPH: PENDING: 54f1e3960199f Call now-haka-kalmar2 using cached [dev]
+    var rex = {
+    	clear:  / Call PHPH starting /,
+    	feed:   / (\S+) \S+: \S+( (?:Call \S+)|(?:))/,
+    	status: / (PENDING|OK|WARNING|CRITICAL): /,
+    	parts:  / (\S+) ((?:PENDING|OK|WARNING|CRITICAL):) (\S+)(?: Call)? (\S+)?/
+    };
+    var map = {};
+    var statusColor = {
+    	"PENDING": "black",
+    	"OK": "green",
+    	"WARNING": "orange",
+    	"CRITICAL": "red"
+    }
+
+    function clear() {
+    	content.innerHTML = "";
+    	summary.innerHTML = "";
+    	unfilteredcontent = "";
+    	map = {};
+    }
+
+// 17:10:20 birk-03 OK: 54f72e59db07e p-idp 164/w-sp 214/p-sp 214/w-idp 1
+// 20:57:06 arken OK: 1425499021 Call https://metadata.wayf.dk/ss/module.php/cron/cron.php?tag=daily
+// {"ts":1425237992,"act":"metadatastatus","txt":"PENDING: 54f367e87ab02","srv":"birk-04","tag":"","id":1199615}
+// {"ts":1425297467,"act":"metadatastatus","txt":"OK: 54f450325a86f Call wayf-prod-sp-delta [] validuntil +7 days 33\/0 [dev]","srv":"arken","tag":"ac23111e5f1c43681f01e92820657b9d","id":1284447}
+
+    socket.addEventListener("message", function (event) {
+        var data = JSON.parse(event.data);
+        if (rex.clear.test(data['txt'])) { clear(); }
+        //statuses[data['act'] + '_' + data['srv'] + '_' + data['tag']]
+        var line = new Date((data["ts"]) * 1000).toLocaleTimeString('en-GB').substring(0,8) + ' ' + data['srv'] + ' ' + data['txt'];
+
+        unfilteredcontent = line + "\n" + unfilteredcontent;
+        content.innerHTML = unfilteredcontent;
+        // document.body.scrollTop = document.body.scrollHeight;
+
+        if (rex.feed.test(line)) {
+            var res = rex.feed.exec(line);
+            map[res[1] + '_' + res[2]] = line;
+        }
+        summary.innerHTML = "";
+        for (var key in map) {
+        	status = rex.status.exec(map[key])[1];
+        	var inner = map[key].replace(rex.parts, " <span onclick=\"filter(/ $1 /)\">$1 </span><span onclick=\"filter(/ $2 /)\">$2 </span><span onclick=\"filter(/ $3 /)\">$3 </span><span onclick=\"filter(/ $4 /)\">$4</span>");
+        	var p = document.createElement("p");
+        	p.innerHTML = inner;
+        	p.style.color = statusColor[status];
+        	summary.appendChild(p);
+        }
+    });
+
+    function filter(filter) {
+        content.innerHTML = unfilteredcontent.split('\n').filter(function(s) { return s.match(filter); }).join('\n');
+    }
+
+    function ping() {
+        var selected = $('input:checked').map(function(i,el){return el.name;}).get().join('/');
+        var xhr = new XMLHttpRequest();
+        xhr.addEventListener("load", function(e) {
+            if (xhr.status !== 200) {
+                showError(xhr.responseText);
+            }
+        });
+        xhr.open("GET", "/ping/" + selected, true);
+        xhr.send();
+    }
+</script>

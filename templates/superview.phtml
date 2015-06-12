@@ -1,0 +1,24 @@
+<section class="flex">
+<?php
+foreach ($superview as $path => $dirs) {
+    print "<section><h3>$path</h3>";
+    foreach ( $dirs as $dir => $mdfiles ) {
+        print <<<eob
+        <p>$dir</p>
+        <table class="superview"><tr><th>Feed</th><th>Errs</th><th>XML</th><th>IdPs</th><th>SPs</th><th>Secs old</th></tr>
+eob;
+        foreach($mdfiles as $fed => $mdfile) {
+            extract($mdfile);
+            print <<<eob
+<tr><td><a href="mdfileview?type=$path&fed=$name">$name</a></td>
+<td><a href="mdfileview?type=$path&fed=$name&errs=1">$serrs / $mderrs</a></td>
+<td><a title="$fn" href="raw?type=$path&fed=$name">XML</a></td>
+<td>$idps</td><td>$sps</td><td>$delta</td></tr>
+eob;
+        }
+        print "</table>";
+    }
+    print "</section>";
+}
+?>
+</section>

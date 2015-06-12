@@ -1,0 +1,147 @@
+<?php
+    function show(array $show) {
+        $total = array();
+        foreach($show as $superkey => $vals) {
+            $total += $vals;
+        }
+        uksort($total, 'strnatcasecmp');
+        foreach( $total as $k => $v) {
+            if (preg_match('/KeyDescriptor:\d+$/', $k)) {
+                $v = '<pre>' . chunk_split(preg_replace("/\s+/", '', $v), 76, PHP_EOL) . '</pre>';
+            }
+            print "<tr><td>$k</td><td>$v</td></tr>\n";
+        }
+    }
+    $xml = $show['xml'];
+    unset($show['xml']);
+    $unapproved = '<a href="/approve?' . $_SERVER['QUERY_STRING'] . '">Approve with current ARP</a>';
+
+?>
+<section>
+<section class="half">
+  <h1><?= $summary['organisationdisplayname'] ?></h1>
+  <?php
+    $types = array('SP', 'IDP', 'AA');
+    // $types = array('SP', 'IDP', 'AA', 'R&S', 'CoCo');
+    foreach ($types as $k => $value)
+      if (!isset($value, $summary) || !$summary[$value])
+        unset($types[$k]);
+  ?>
+  <dl>
+    <dt>IdP name</td><dd><?= $summary['idpdisplay'] ?></dd><br>
+    <dt>SP name</td><dd><?= $summary['spdisplay'] ?></dd><br>
+    <dt>Entity ID</dt><dd><?= $summary['entityid'] ?></dd><br>
+    <dt>Types</dt><dd><?= implode(", ", $types); ?></dd><br>
+    <dt>Federation</dt><dd><?= $summary['type'] . '/' . $summary['fed']; ?></dd><br>
+    <dt>Collisions</dt><dd><?= join(', ', $summary['collisions']) ?></dd>
+  </dl>
+</section>
+<?php if (count($summary['entitycategories'])): ?>
+<section class="half">
+<h2>Entity Categories</h2>
+<ul>
+<?php foreach ($summary['entitycategories'] as $ec): ?>
+<li><?= $ec ?></li>
+<?php endforeach; ?>
+</ul>
+</section>
+<?php endif; ?>
+</section>
+
+<?php if ($approvable): ?>
+
+<section>
+<h2 class="showandhideable" id="log">Log</h2>
+<table class="log"><tr><th>Ref.</th><th>Date</th><th>User</th><th>Action</th><th>Attributes</th></tr>
+<?php
+foreach( $logentries as $le) {
+    foreach($le as &$x) { $x = htmlspecialchars($x); }
+    $le['a'] = preg_replace('/\$ref/', $le['ref'], g::$config['ticketurl']);
+    print "<tr><td><a href=\"{$le['a']}\" target=_blank>{$le['ref']}</a></td><td>{$le['date']}</td><td>{$le['user']}</td><td>{$le['action']}</td><td>{$le['attributes']}</td></tr>";
+}
+$ticket = isset($le['ref']) ? $le['ref'] : '';
+
+?>
+</table>
+</section>
+
+<section>
+  <h2 class="showandhideable" id="attributes">Attributes</h2>
+  <section>
+      <form method="post" action="/approve" id="approve">
+        <input type="hidden" name="formvalues" value="<?= $key ?>">
+        <input type="hidden" name="attrs" id="attrs" value="">
+        Ticket ID: <input type="text" name="ticket" value="<?= $ticket ?>">
+        <input type="submit" class="cta" value="Publish" name="approve">
+        <?php if ($unapprovable): ?>
+            <input type="submit" class="cta" value="Unpublish" name="unapprove">
+        <?php endif; ?>
+        <!-- <?= $unapproved; ?> -->
+      </form>
+  </section>
+  <section class="half">
+    <h3>Supported</h3>
+    <table class="attributes fixed">
+      <thead>
+        <tr>
+          <th>FriendlyName</th>
+          <th>URI</th>
+          <th width="15%">Requested</th>
+          <th width="15%">Required</th>
+          <th width="15%">Granted</th>
+        </tr>
+      </thead>
+      <tbody id="supportedAttributes">
+      </tbody>
+    </table>
+  </section>
+  <section class="half">
+  <h3>Unsupported</h3>
+    <table class="attributes fixed">
+      <thead>
+        <tr>
+          <th>FriendlyName/Name</th>
+          <th>Nameformat</th>
+        </tr>
+      </thead>
+      <tbody id="unsupportedAttributes">
+      </tbody>
+    </table>
+  </section>
+ </section>
+<?php endif; ?>
+<section>
+  <h2 class="showandhideable" id="flat">Metadata ("flat")</h2>
+  <table class="fixed">
+    <thead>
+      <tr>
+        <th width="30%">Keys</th>
+        <th>Values</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?= show($show) ?>
+    </tbody>
+  </table>
+</section>
+<section>
+<h2 class="showandhideable" id="xml">Metadata (XML)</h2>
+<pre><?= $xml ?></div>
+</section>
+<section>
+<h2 class="showandhideable" id="schema_errors">Schema Errors <?= sizeof($schema_errors); ?></h2>
+<pre><?= join("", $schema_errors); ?></pre>
+</section>
+<section>
+<h2 class="showandhideable" id="metadata_errors">Metadata Errors <?= sizeof($metadata_errors); ?></h2>
+<pre><?= join("\n", $metadata_errors); ?></pre>
+</section>
+<section>
+<h2 class="showandhideable" id="summary">Summary</h2>
+<?php
+    phphfrontend::myprint_r($summary);
+?>
+</section>
+<script> var attrs = <?= $ats ?>; </script>
+<script> var xtraats = <?= $xtraats ?>; </script>
+<script type="text/javascript" src="/js/show.js"></script>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Entity</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content=""/>
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+    <script type="text/javascript" src="/js/jquery-2.1.1.min.js"></script>
+    <script src="/js/sortable.js"></script>
+    <link rel="stylesheet" href="font-awesome-4.2.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/css/normalize.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/sortable-theme-minimal.css" />
+</head>
+<body>
+<section id="header">
+    <a title="PHPH" href="/overview"><img src="/images/wayfLogo.svg" /></a>
+</section>
+<nav class="<?= g::$config['production'] ? "production" : "test" ?>">
+    <a title="Overview" href="/overview" <?= g::$path[0] == 'overview' ? 'class="active"' : '' ?>>Overview</a>
+    <a title="Tail" href="/tail" <?= g::$path[0] == 'tail' ? 'class="active"' : '' ?>>Tail</a>
+    <a title="Graph" href="/dot" <?= g::$path[0] == 'dot' ? 'class="active"' : '' ?>>Config Graph</a>
+    <a title="Debug" href="/superview" <?= g::$path[0] == 'superview' ? 'class="active"' : '' ?>>Debug</a>
+    <a title="README" href="/readme" <?= g::$path[0] == 'readme' ? 'class="active"' : '' ?>>README</a>
+    <div class="right">
+        <a href="/auth?reset=1"><?= isset($_SESSION['SAML']['attributes']['eduPersonPrincipalName'][0]) ? 'User: ' . $_SESSION['SAML']['attributes']['eduPersonPrincipalName'][0] : 'Login'; ?></a>
+        <a><?= g::$config['production'] ? "Production" : "Test" ?> mode</a>
+    </div>
+</nav>
+<section id="errors">
+    <?php if (count(errors::$errors)): ?>
+    <pre class="errors">
+    <?php
+    print join("<br>", errors::$errors);
+    ?>
+    </pre>
+    <?php endif; ?>
+</section>
+<?= $content ?>
+<?php if (isset($debug_out)): ?>
+<div>
+    <pre><?= $debug ?></pre>
+</div>
+<?php endif; ?>
+<script>
+// Main js script, maybe deserves seperate file in the future
+var showError = function(message) {
+    if (message === "") return;
+    $("#errors").html('<pre class="errors">' + message + '</pre>');
+};
+var query = decodeURIComponent(window.location.search);
+query = query.substring(1).split('&');
+var parameters = {};
+for (var i = 0; i < query.length; i++) {
+    var pair = query[i].split('=');
+    parameters[pair[0]] = pair[1];
+}
+if ("error" in parameters) {
+    showError(parameters["error"]);
+}
+</script>
+</body>
+</html>

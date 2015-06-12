@@ -1,0 +1,53 @@
+<link rel="stylesheet" href="/css/markdown.css">
+<style>
+ul {
+	line-height: 1.5em;
+	list-style-type: circle;
+	padding: 0;
+}
+ol
+{
+    counter-reset: item;
+    list-style-position: outside;
+}
+
+ol li
+{
+    position: relative;
+    left: 1em;
+    display: block;
+    list-style-position: outside;
+}
+
+ol li:before
+{
+    content: counters(item, ".") ".";
+    counter-increment: item;
+    position: absolute;
+    left: -2.5em;
+    display: block;
+    width: 2em;
+    text-align: right;
+}
+
+ol li li:before { left: -2.5em; }
+ol li li li:before { left: -3em; }
+
+ol > a:hover, ol > a:visited, ol > a:link, ol > a:active
+{
+    text-decoration: none !important;
+    color: inherit;
+}
+</style>
+<md id="markdown" class="hidden">
+<?= $content; ?>
+</md>
+<section id="marked" class="markdown-body text"></section>
+<script src="/js/marked.min.js"></script>
+<script>
+    var md = document.getElementById("markdown");
+    var raw = md.innerHTML;
+    var converted = marked(raw);
+    document.getElementById("marked").innerHTML = converted;
+//    $("#marked").html(marked());
+</script>

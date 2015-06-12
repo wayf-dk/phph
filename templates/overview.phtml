@@ -1,0 +1,27 @@
+<section id="search">
+    <input id="searchInput" type="search" placeholder="Search" autofocus size=50 />
+    <button id="searchClear" class="cta" href="#">Clear search and filters</button>
+    <span id="status">Loading</span>
+    <span id="raw"</span>
+</section>
+<section id="filters"></section>
+<section>
+    <table class="link fixed" data-sortable>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>EntityID</th>
+                <th style="width: 8rem;">Roles</th>
+                <th style="width: 8rem;">Federation</th>
+                <th style="width: 6rem;">Approved</th>
+                <th style="width: 6rem;">Errs</th>
+            </tr>
+        </thead>
+        <tbody id="previews"></tbody>
+    </table>
+</section>
+
+<script>
+    var json = <?php echo $json; ?>;
+</script>
+<script type="text/javascript" src="/js/overview.js"></script>

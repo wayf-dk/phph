@@ -1,0 +1,301 @@
+/* Utility */
+
+.hidden {
+	display: none;
+}
+.right {
+	float: right;
+}
+
+/* Global */
+
+body {
+	font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+	padding-bottom: 2em;
+}
+body:after {
+  content:"";
+  display:table;
+  clear:both;
+}
+h1, h2, h3 {
+	margin: 0 0 1rem 0;
+}
+td i.fa {
+	width: 100%;
+	text-align: center;
+}
+
+/* Sections */
+
+section, .section {
+	width: 100%;
+	display: block;
+	padding: 0 2em;
+	clear: both;
+ 	float: left;
+ 	box-sizing: border-box;
+}
+section + section {
+	margin-top: 1em;
+}
+section section {
+	padding: 0;
+}
+section.half {
+	width: 48.5%;
+	clear: none;
+}
+section.half + section.half {
+	margin-left: 3%;
+}
+section.text {
+    max-width: 45rem;
+}
+section.flex {
+	overflow-x: auto;
+	white-space: nowrap;
+}
+section.flex section {
+	max-width: 30rem;
+	clear: none;
+	float: none;
+	display: inline-block;
+}
+section.flex section + section {
+	margin-left: 2rem;
+}
+section.flex table, section.flex p {
+	width: 100%;
+	float: left;
+}
+
+/* Inputs and buttons */
+
+input, button, #status {
+	padding: 0.5em;
+	font-size: 0.85em;
+	display: inline-block;
+}
+input {
+	margin-right: 1em;
+}
+input[type=submit], button {
+	background: transparent;
+	border: solid 0.15em #7ABA4A;
+	border-radius: 0.5em;
+}
+input[type=submit].cta, button.cta {
+	background: #7ABA4A;
+	color: white;
+}
+
+/* Tables */
+
+table {
+	width: 100%;
+}
+table th, td {
+	border: 1px solid black;
+	border-collapse: collapse;
+}
+table pre {
+	border: 0;
+	background: transparent;
+	padding: 0;
+}
+tr:nth-child(even) {
+	background: #EEE;
+}
+th, td {
+	vertical-align: top;
+	padding: 0.5em;
+	text-align: left;
+}
+td > a {
+	display: block;
+	color: black;
+	width: auto;
+}
+td, th, td > a {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+table.fixed {
+	table-layout: fixed;
+}
+table.link td {
+	padding: 0;
+}
+table.link td > a {
+	padding: 0.5em;
+	text-decoration: none;
+}
+table.attributes td {
+	cursor: pointer;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
+table.attributes tr.requested {background-color: tomato;}
+table.attributes tr.requested.granted {background-color: lightgreen;}
+table.attributes tr.granted {background-color: orange;}
+
+/* Header */
+
+#header img {
+	width: 10em;
+	height: auto;
+}
+#header {
+	margin-top: 1em;
+}
+
+/* Navigation */
+
+nav {
+	padding: 0 2em;
+	margin: 1em 0;
+	background: gray;
+	float: left;
+	width: 100%;
+	box-sizing: border-box;
+}
+nav a, nav span {
+	padding: 0.5em 0;
+	display: inline-block;
+	color: white;
+	text-decoration: none;
+}
+nav a {
+	padding-right: 1em;
+}
+nav a + a {
+	border-left: 2px dotted white;
+	padding-left: 1em;
+}
+nav a:hover {
+	text-decoration: underline;
+}
+nav.production {
+	background: #7ABA4A;
+}
+nav.test {
+	background: orange;
+}
+nav.test a, nav.test span {
+	color: black;
+}
+nav a.active {
+	text-decoration: underline;
+}
+
+/* Filters */
+
+#filters div {
+	display: inline-block;
+}
+#filters div + div {
+	margin-left: 1.5em;
+}
+#filters button + button {
+	margin-left: 0.5em;
+}
+#filters button i {
+	width: 1em;
+	text-align: left;
+}
+
+/* Lists */
+
+/*
+ul {
+	line-height: 1.5em;
+	list-style: none;
+	padding: 0;
+}
+ */
+dl > dt, dd {
+	display: inline-block;
+	margin: 0;
+}
+dl > dt + dd {
+	margin-left: 0.5em;
+}
+dl > dt {
+	font-weight: bold;
+}
+dl > dt:after {
+	content: ": ";
+}
+
+/* Superview */
+
+table.superview td {
+    text-align: right;
+}
+
+table.superview td:nth-child(1) {
+    text-align: left;
+}
+
+/* Show-and-hideable */
+
+.showandhideable {
+    cursor: pointer;
+    -webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
+.showandhideable:before, .showandhideable.closed:before {
+	display: inline-block;
+	width: 1em;
+}
+
+.showandhideable:before {
+	content: "▾ ";
+}
+
+.showandhideable.closed {
+	margin: 0;
+}
+
+.showandhideable.closed:before {
+	content: "▸ ";
+}
+
+.showandhideable.closed ~ * {
+    display: none;
+}
+
+/* Code */
+
+pre {
+	display: block;
+	font: 0.9em/1.2em Menlo, monospace;
+	padding: 1em;
+	margin: 0;
+	background-color: #EEE;
+	border: 1px solid #AAA;
+	border-radius: 0.5em;
+	word-break: break-all;
+	word-wrap: break-word;
+}
+
+pre + pre {
+	margin-top: 1em;
+}
+
+pre p {
+	padding: 0;
+	margin: 0;
+}
+
+pre.errors {
+    color: red;
+}
