@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://test.wayf.dk/SP.php/ACS" ID="za3fbccd65833afd5d9ac2d61d9fc550d63d450ad" InResponseTo="z68749462dd60cdbe71270b0d2274104c325e6a14" IssueInstant="2014-02-13T18:59:25Z" Version="2.0">
+	<saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+		https://birk.wayf.dk/IDP
+	</saml:Issuer>
+	<samlp:Status>
+		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	</samlp:Status>
+	<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ID="z4622ddd0edb3b5db189d944b488bcd9750bf14ff" IssueInstant="2014-02-13T18:59:25Z" Version="2.0"><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+     <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+     <ds:Reference URI="#z4622ddd0edb3b5db189d944b488bcd9750bf14ff">
+       <ds:Transforms>
+         <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+         <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+       </ds:Transforms>
+       <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>beL36IY58Yc2zyvQ1DL874xI7fsbm/IMWr3KidIp6fU=</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue>KF+Rvfxox2l/7jWi2TE078GgQ0U0SBypEKcpQrS11yiY+cul+XkE7KNst194X1LahQYng8YpVaYZbqMT1aHdfUJ4d7FpAj8+8eRDHItIjNz0pQC3N+xNX4gVNcmGVm4alXpHjaZmye+Pja6BMy3ctaTHY0Qo3/OD/wpB5TnsoKgas5fRKTYyLfAfcb3Uhn3/u/JCv1YMftVyfoqsTK8ct/ffgR0rmnu0ewleP27VKAmFsM/lQKlgOswj15qh/7Swhw2rHbBjy+jfPiL54CjcYfu/7WiFM1kqzcISV/g9++SUAdVPiG8wqCL5VhEJ6AD28ngkLhuThPsu4zfjSES+9A==</ds:SignatureValue>
+<ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIEMDCCAxigAwIBAgIJAOfIk9fIqyx3MA0GCSqGSIb3DQEBBQUAMG0xCzAJBgNV
+BAYTAkRLMRMwEQYDVQQIEwpTb21lLVN0YXRlMQwwCgYDVQQHEwNDcGgxEDAOBgNV
+BAoTB1dBWUYuZGsxKTAnBgNVBAMTIFdBWUYgc2VsZnNpZ25lZCB0ZXN0IGNlcnRp
+ZmljYXRlMB4XDTE0MDgwNzEyNTQxOFoXDTE3MDgwNjEyNTQxOFowbTELMAkGA1UE
+BhMCREsxEzARBgNVBAgTClNvbWUtU3RhdGUxDDAKBgNVBAcTA0NwaDEQMA4GA1UE
+ChMHV0FZRi5kazEpMCcGA1UEAxMgV0FZRiBzZWxmc2lnbmVkIHRlc3QgY2VydGlm
+aWNhdGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCrr88MB5njZXoV
+YXYkRL5zz+sQRcvYkkld7Lk5tFFM7pGnCcgfR+HhmUT3xahFUrmsGziLe0Egh21y
+cIOoZtsUcysKnVLEg2cKr9bg1w5W3iqC1TQv7xlniYKrO9mOrt/0THnwNtyBS2Yn
+37OoGDelHrsxFCqsvYyXom3c41fIZK17oXcl0gGYeBtAtA1L+6dq/zRQ5KfxRRXB
+uhd6HX0HQpcK/E2xWePHS08IXCRjxSZEcJ138JBtC3D0AXXPwIZdwkfABhmmZXFF
+h1HpZtuwz+UctVgRFjjxKmxGc61WnUYHd3QESk6oUWcldJN+owpGOlkkmq1a6wE1
+tzDfBYydAgMBAAGjgdIwgc8wHQYDVR0OBBYEFKzUniWO7hIUg63FgovipVUPOiOD
+MIGfBgNVHSMEgZcwgZSAFKzUniWO7hIUg63FgovipVUPOiODoXGkbzBtMQswCQYD
+VQQGEwJESzETMBEGA1UECBMKU29tZS1TdGF0ZTEMMAoGA1UEBxMDQ3BoMRAwDgYD
+VQQKEwdXQVlGLmRrMSkwJwYDVQQDEyBXQVlGIHNlbGZzaWduZWQgdGVzdCBjZXJ0
+aWZpY2F0ZYIJAOfIk9fIqyx3MAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEFBQAD
+ggEBAJ36Xfb3eq2w2vPLmg+bMnfNwTLnc8mTr4YlwcoWwAFWaF8uWhFVoT4rMRMt
+yCQ5nm+AjOh+IlkfcZFRYG6l/z2oszqTDDmNTyQHu7fR+1zz0Hgy9KYsJtb/4AN6
+wEqNMBoFA7JtvCD/3cze7h535eAxrKGyhSyWxYTkoLx0pjsyWUOp9Audu9tpG/QM
+97kRZtxRWllJHOvl8ZhPFUFTBeLXFP1dZ+Y5sjBaviB0qMV6Nbq8Jpt+X/Os4ccX
+Zq5sivkvhwHy6pNM0PGfPOJkQszwt0eneiGnNPd+mqAJYi6HobiNkoi9A/bDhdKk
+aMhlr5mrmJ5PfKfBOlCKMtCZR8I=
+</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature>
+		<saml:Issuer>
+			https://birk.wayf.dk/IDP
+		</saml:Issuer>
+		<saml:Subject>
+			<saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" SPNameQualifier="https://birk.wayf.dk/SP">
+				z8627280a287edaffdf1c15b03dcc5c3c42733b0e
+			</saml:NameID>
+			<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+				<saml:SubjectConfirmationData InResponseTo="z68749462dd60cdbe71270b0d2274104c325e6a14" NotOnOrAfter="2014-02-13T19:04:25Z" Recipient="https://test.wayf.dk/SP.php/ACS"/>
+			</saml:SubjectConfirmation>
+		</saml:Subject>
+		<saml:Conditions NotBefore="2014-02-13T18:59:25Z" NotOnOrAfter="2014-02-13T19:04:25Z">
+			<saml:AudienceRestriction>
+				<saml:Audience>
+					https://birk.wayf.dk/SP
+				</saml:Audience>
+			</saml:AudienceRestriction>
+		</saml:Conditions>
+		<saml:AuthnStatement AuthnInstant="2014-02-13T18:59:25Z" SessionIndex="z4622ddd0edb3b5db189d944b488bcd9750bf14ff" SessionNotOnOrAfter="2014-02-13T21:59:25Z">
+			<saml:SubjectLocality Address="134.147.40.44"/>
+			<saml:AuthnContext>
+				<saml:AuthnContextClassRef>
+					urn:oasis:names:tc:SAML:2.0:ac:classes:Password
+				</saml:AuthnContextClassRef>
+				<saml:AuthenticatingAuthority>
+					https://birk.wayf.dk/IDP
+				</saml:AuthenticatingAuthority>
+			</saml:AuthnContext>
+		</saml:AuthnStatement>
+		<saml:AttributeStatement>
+			<saml:Attribute Name="eduPersonPrincipalName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					joe.user@xws.test.wayf.dk
+				</saml:AttributeValue>
+			</saml:Attribute>
+			<saml:Attribute Name="cn" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					Joe User
+				</saml:AttributeValue>
+			</saml:Attribute>
+			<saml:Attribute Name="mail" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					joe.user@example.com
+				</saml:AttributeValue>
+			</saml:Attribute>
+			<saml:Attribute Name="eduPersonPrimaryAffiliation" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					tester
+				</saml:AttributeValue>
+			</saml:Attribute>
+			<saml:Attribute Name="organizationName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					example.com
+				</saml:AttributeValue>
+			</saml:Attribute>
+			<saml:Attribute Name="eduPersonAssurance" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					0
+				</saml:AttributeValue>
+			</saml:Attribute>
+			<saml:Attribute Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+				<saml:AttributeValue xsi:type="xs:string">
+					group1
+				</saml:AttributeValue>
+				<saml:AttributeValue xsi:type="xs:string">
+					group2
+				</saml:AttributeValue>
+			</saml:Attribute>
+		</saml:AttributeStatement>
+	</saml:Assertion>
+</samlp:Response>

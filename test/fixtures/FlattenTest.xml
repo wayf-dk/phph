@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<wayf:one id="one0" xmlns:wayf="http://wayf.dk/2014/08/wayf">
+    <wayf:two id="two0">two0</wayf:two>
+    <wayf:two id="two1">two1</wayf:two>
+</wayf:one>
