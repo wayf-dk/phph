@@ -1,27 +1,61 @@
-<section id="search">
-    <input id="searchInput" type="search" placeholder="Search" autofocus size=50 />
-    <button id="searchClear" class="cta" href="#">Clear search and filters</button>
-    <span id="status">Loading</span>
-    <span id="raw"</span>
-</section>
-<section id="filters"></section>
 <section>
-    <table class="link fixed" data-sortable>
+  <div id="app">
+    <h1 :style="{ display: 'none' }">Loading...</h1>
+    <div v-cloak>
+      <div>
+        <?php if (isset($type)): ?>
+            <div class="feedinfo">Feed: <?= $fed ?>, Type: <?= $type ?>,
+                File: <?php if ($type == 'published' ) { echo "<a href=\"/md/$filename\">$filename</a>"; }
+                      else {echo "File: <a href=\"/raw?type=$type&fed=$fed\">$filename</a>"; }
+                ?>
+            </div>
+      <?php endif; ?>
+        <input autofocus size=50 class="filter-search" type="text" placeholder="Filter..." v-model="search">
+        <span>{{ entities.length }} matches&nbsp;</span>
+        <button class="cta" @click="clear">Clear search and filters</button>
+      </div>
+      <div>
+        <div class="filter-group" v-for="group in buttons">
+          <label class="filter-attribute" v-for="button in group">
+            <span title="{{ button.filter }}">{{ button.text }}</span>
+            <input type="checkbox" v-model="button.checked">
+          </label>
+        </div>
+      </div>
+      <div class="table-container" style="position: relative; overflow-y: scroll; height: 100px;" @scroll="scroll">
+        <div :style="{ height: tableHeight, position: 'relative', top: offset }">
+          <table class="entities fixed" :style="{ position: 'relative', top: divOffset }">
         <thead>
-            <tr>
-                <th>Name</th>
-                <th>EntityID</th>
-                <th style="width: 8rem;">Roles</th>
-                <th style="width: 8rem;">Federation</th>
-                <th style="width: 6rem;">Approved</th>
-                <th style="width: 6rem;">Errs</th>
-            </tr>
+          <tr>
+            <th>Name</th>
+            <th>EntityID</th>
+            <th style="width: 6em;">Roles</th>
+            <th style="width: 10em;">EntCats</th>
+            <th style="width: 6em;">Federation</th>
+            <th style="width: 3em;">Apv</th>
+            <th style="width: 4em;">Errs</th>
+          </tr>
         </thead>
-        <tbody id="previews"></tbody>
-    </table>
+            <tbody>
+              <tr v-for="entity in entities.slice(start, end)" track-by="$index">
+                <td><a href="{{ entity.url }}" title="{{ entity.keywords }}" class="no-decoration">{{ entity.displayName }}</a></td>
+                <td><a href="{{ entity.url }}" class="no-decoration">{{ entity.displayEntityId }}</a></td>
+                <td><a href="{{ entity.url }}" class="no-decoration">{{ entity.displayRoles }}</a></td>
+                <td><a href="{{ entity.url }}" class="no-decoration">{{ entity.displayEncats }}</a></td>
+                <td><a href="{{ entity.fedurl }}" title="{{ entity.alsoin }}"  class="no-decoration">{{ entity.displayFederation }}</a></td>
+                <td><a href="{{ entity.url }}" class="no-decoration"><span v-if="entity.approved"><i class="fa fa-lg fa-check"></i><span></a></td>
+                <td><a href="{{ entity.url + '#metadataerrors' }}" class="no-decoration">{{entity.metadataerrors}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <script>
-    var json = <?php echo $json; ?>;
+var groups = <?php echo $buttons; ?>;
 </script>
-<script type="text/javascript" src="/js/overview.js"></script>
+<script src="/js/vue.js"></script>
+<script src="/js/overview.js"></script>

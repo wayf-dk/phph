@@ -72,6 +72,10 @@ The Overview Tab provides a search field which makes it possible to search for /
 
 - colon delimited words (\w+):(\w*) provides a search in the $1 field of the summary. If $2 is empty or $1 is a boolean field the search is for a 'truthy' value. If $2 is not empty the search is a truncated search in field $1 depending on the type of field $1. If the values of field $1 is an array the search is successfull if just one value is found (implied OR). The fieldname $1 is case sensitive. The value $2 is case insensitive.
 
+- By using the  delimiter :! the result of that term is negated.
+
+- By using the delimiter (\w+):~(\w*),(\w*) you can make range searches eg: registrationInstant:
+
 - It is possible to use javascript regular expression special chars - eg. $ to un-truncate a search - in values ($2).
 
 - Common searches can be configured as easy accessible buttons

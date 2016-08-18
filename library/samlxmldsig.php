@@ -15,7 +15,7 @@ class samlxmldsig {
 
     static $php2dsig_methods;
 
-    static function sign($xp, $element, $certificate, $privatekey, $pw, $signatureMethod, $digestMethod)
+    static function signxml($xp, $element, $certificate, $privatekey, $pw, $signatureMethod, $digestMethod, $insertbefore)
     {
         $elementc14n = $element;
         if ($element === $element->ownerDocument->documentElement) {
@@ -49,7 +49,7 @@ eos;
         $f = $xp->document->createDocumentFragment();
         $f->appendXML($signaturetext);
 
-        $element->insertBefore($f, $element->firstChild);
+        $element->insertBefore($f, $element->childNodes->item($insertbefore));
 
         $ID = $xp->query('@ID', $element)->item(0);
         if ($ID) {
@@ -64,17 +64,8 @@ eos;
         $signedinfo = $xp->query('./ds:Signature/ds:SignedInfo', $element)->item(0);
         $canonicalxml2 = $signedinfo->C14N(true, false);
 
-        // if it is an hsm key don't interpret it as a PEM encoded key
-	    if (substr($privatekey, 0, 4) === 'hsm:') {
-            $signaturevalue = self::signHSM($data, $privatekey, $digestMethod);
-            if ($signature === false) {
-                throw new Exception('Failure Signing Data: ' . $algo);
-            }
-        } else {
-            $pkey_res = openssl_pkey_get_private($privatekey, $pw);
-            openssl_sign($canonicalxml2, $signaturevalue, $pkey_res, $signatureMethod);
-            openssl_free_key($pkey_res);
-        }
+        $signaturevalue = self::sign($privatekey, $pw, $canonicalxml2, $signatureMethod, $digestMethod);
+
         $xp->query('./ds:Signature/ds:SignatureValue', $element)->item(0)->appendChild(new DOMText(base64_encode($signaturevalue)));
 
         if ($certificate) {
@@ -83,11 +74,38 @@ eos;
         }
     }
 
+    static function sign($privatekey, $pw, $data, $signatureMethod, $digestMethod) {
+        // if it is an hsm key don't interpret it as a PEM encoded key
+        //$privatekey = file_get_contents($privatekey);
+	    if (substr($privatekey, 0, 4) === 'hsm:') {
+            $signaturevalue = self::signHSM($data, $privatekey, $digestMethod);
+            if ($signaturevalue === false) {
+                throw new Exception('Failure Signing Data: ' . $algo);
+            }
+        } else {
+            $pkey_res = openssl_pkey_get_private($privatekey, $pw);
+            openssl_sign($data, $signaturevalue, $pkey_res, $signatureMethod);
+            openssl_free_key($pkey_res);
+        }
+        return $signaturevalue;
+    }
+
     static function signHSM($data, $keyident, $algo) {
         // we do the hashing here - the $algo int/string confusion is due to xmlseclibs
         // openssl_sign confusingly enough accepts just the hashing algorithm
-        $hashalgo = array(OPENSSL_ALGO_SHA1 => 'sha1' , 'SHA256' => 'sha256');
+        $hashalgo = array(OPENSSL_ALGO_SHA1 => 'sha1', 'sha1' => 'sha1', 'SHA256' => 'sha256', 'sha256' => 'sha256');
         // always just do the RSA signing - we assume that the service can do the padding/DER encoding
+        $algo = $hashalgo[$algo];
+
+        switch ($algo) {
+            case 'sha1':
+                $t = pack('H*', '3021300906052b0e03021a05000414');
+                break;
+            case 'sha256':
+                $t = pack('H*', '3031300d060960864801650304020105000420');
+                break;
+        }
+
         $mech = 'CKM_RSA_PKCS';
         // limit explode to 3 items - 'hsm', the sharedkey and the url, which may contain ':'s
         list($hsm, $sharedkey, $url) = explode(':', trim($keyident), 3);
@@ -95,11 +113,13 @@ eos;
         $opts = array('http' =>
           array(
             'method'  => 'POST',
-            'header'  => "Content-Type: application/json\r\nX-AUTH: $sharedkey\r\n",
+            'header'  => "Content-Type: application/json\r\n",
             'content' => json_encode(array(
-                'data' => base64_encode(hash($hashalgo[$algo], $data, true)),
-                'key'  => $keyident,
-                'mech' => $mech
+                'data' => base64_encode($t . hash($hashalgo[$algo], $data, true)),
+                'mech' => $mech,
+                'digest' => '',
+                'function' => 'sign',
+                'sharedkey' => $sharedkey,
                 )),
             'timeout' => 2
           )
@@ -107,6 +127,7 @@ eos;
 
         $context  = stream_context_create($opts);
         $res = file_get_contents($url, false, $context);
+
         if ($res !== false) {
             $res = json_decode($res, 1);
             $res = base64_decode($res['signed']);
@@ -117,7 +138,7 @@ eos;
     /**
         SAML relevant subset of xmldsig checking:
         - the Signature element is always a child of the signed element
-        - alwayf same document references pt. including null URIs - be liberal ...
+        - always same document references pt. including null URIs - be liberal ...
         - $element is checked and should be used as 'payload' afterwards
 
         to-do:
@@ -142,7 +163,11 @@ eos;
         $multikeys = array('Transforms');
 
         $signature = $xp->query("ds:Signature", $element)->item(0);
-        $publickey = openssl_pkey_get_public(self::ppcertificate($certificate));
+        if (is_resource($certificate) && get_resource_type($certificate) === 'OpenSSL key') {
+            $publickey = $certificate;
+        } else {
+            $publickey = openssl_pkey_get_public(self::ppcertificate($certificate));
+        }
         if (!$signature || !$certificate || !$publickey) { return null; }
 
         $info = array();

@@ -214,7 +214,7 @@
 }
 
 .markdown-body>*:last-child {
-  margin-bottom: 0 !important;
+  margin-bottom: 3em !important;
 }
 
 .markdown-body a:not([href]) {

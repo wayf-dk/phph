@@ -111,7 +111,7 @@ class PhphBackEnd {
         foreach ($this->destinations as $id => $src) {
             if (empty($src['url'])) { continue; }
             // hack to be able to do file:// in a second run, after getting md from JANUS ...
-            if (strpos($src['url'], $protocol) === false) { continue; }
+            if (!(strpos($src['url'], $protocol) === 0)) { continue; }
             if (strpos($src['url'], 'file') === 0) { // local files are always just copied - file_get_contents much faster than curl
                 if (file_exists($src['url'])) {
                     $this->buffers[$id] = file_get_contents($src['url']);
@@ -141,8 +141,10 @@ class PhphBackEnd {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FAILONERROR, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 3000);
-//            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-//            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
             curl_multi_add_handle($multi, $ch);
             $channels[(int)$ch] = $id;
         }
@@ -157,7 +159,7 @@ class PhphBackEnd {
                     $i = $channels[(int)$info['handle']];
                     //self::say("getting [$i] " . $this->destinations[$i]['url']);
 
-                    $duration = round(microtime(true) - $durations[$i], 3);
+                    $duration = round(microtime(true) - $durations[$i], 1);
                     if ($result === CURLE_OK) {
                         $this->buffers[$i] = curl_multi_getcontent($info['handle']);
                         $this->status('PENDING', $i, "download completed in: $duration");
@@ -187,20 +189,25 @@ class PhphBackEnd {
         foreach ($rules as $rule) {
             if (preg_match('/check_framework\.xsl$/', $rule)) { continue; }
             $xslt->importStylesheet(new SimpleXMLElement($rule, 0, true));
-            $xslt->transformToXml($xp->document);
+            $xslt->transformToDoc($xp->document);
         }
 
         $errors = libxml_get_errors();
         $filterederrors = array();
         // only pass 'proper' constructed errors thru - dismiss missing functions etc.
         // Ian has implemented some xpath functions in Java, asfaik we can't get xpath to call php when used from xslt !!!
+        $ignoreregexp = '';
+        if ($ignore = g::$config['destinations'][$id]['metadataerrorsignore']) { // might be the empty array
+            $ignoreregexp = '/(' . join('|' , $ignore) . ')/';
+        }
+
         foreach ($errors as $error) {
             if (preg_match('/\[ERROR\] (\S+): (.*)$/', $error->message, $d)) {
                 $error->message = preg_replace("/\n/", " " , $error->message);
-                if (preg_match('/(' . join('|' , g::$config['destinations'][$id]['metadataerrorsignore']) . ')/', $error->message)) {
+                if ($ignoreregexp && preg_match($ignoreregexp, $error->message)) {
                     continue;
                 }
-                $filterederrors[] = $error;
+                $filterederrors[] = $error; // by entityid
             }
         }
         libxml_clear_errors();
@@ -290,13 +297,22 @@ class PhphBackEnd {
         return $res;
     }
 
-    private function createsummary($id, $path, $xp)
+    private function createsummary($id, $path, $xp, $schemaerrors, $metadataerrors)
     {
+        $byid = array();
+        foreach($metadataerrors as $metadataerror) {
+            preg_match('/\[ERROR\] (\S+): (.*)$/', $metadataerror->message, $d);
+            $byid[$d[1]][] = 1; // just counting for now
+        }
+
         $entities = $xp->query('//md:EntityDescriptor');
         $summary = array();
         foreach($entities as $entity) {
             $res = self::summary($xp, $entity, $id, 'feed');
-            $summary[$res['entityid']][] = $res;
+            $entityid = $res['entityid'];
+            $res['metadataerrors'] = '';
+            if (isset($byid[$entityid])) { $res['metadataerrors'] = "".sizeof($byid[$entityid]); }
+            $summary[$entityid][] = $res;
         }
         return $summary;
     }
@@ -325,11 +341,12 @@ class PhphBackEnd {
                    if ($metadata_errors) {
                        $logtag = $this->logtag;
                        self::say("metadata does not conform to Ian's rules. Source: $id, unique error(s):");
+                       // retro fittet metadata_error is now
                        array_walk($metadata_errors, function($a) { PhphBackEnd::say("{$a->message}");});
                    }
             }
         }
-        return array(sizeof($schema_errors), sizeof($metadata_errors));
+        return array($schema_errors, $metadata_errors);
     }
 
     private function handle_valid($valid, $type, $id)
@@ -396,10 +413,10 @@ class PhphBackEnd {
 
             //printf("%s\n", $id);
             $file = $dst['certspath'] . $id . '.crt';
-            $certificate = file_exists($file) ? $certificate = file_get_contents($file) : null;
+            $certificate = file_exists($file) ? file_get_contents($file) : null;
             list ($schemaerrors, $metadataerrors) = $this->schemasignatureandmdcheck($id, $xp, $entitiesDescriptor, $dst['schemacheck'], $dst['signaturecheck'], $certificate, $dst['metadatacheck']);
 
-            $summary[$id]['entities'] = $this->createsummary($id, $path, $xp);
+            $summary[$id]['entities'] = $this->createsummary($id, $path, $xp, $schemaerrors, $metadataerrors);
 
             foreach ($summary[$id]['entities'] as $sumid => $dummy) {
                 $collisions[$sumid][] = $id;
@@ -413,11 +430,12 @@ class PhphBackEnd {
                 $cacheDuration = $this->optional($xp, '@cacheDuration', $entitiesDescriptor);
                 if (!$cacheDuration) { $cacheDuration = $dst['cacheDuration']; }
                 $duration = g::duration2secs($cacheDuration);
-                touch($path, $time + $duration);
+                $mincacheduration = g::duration2secs($dst['cacheDuration']);
+                touch($path, $time + max($duration, $mincacheduration));
             }
 
-            $summary[$id]['schemaerrors'] = $schemaerrors;
-            $summary[$id]['metadataerrors'] = $metadataerrors;
+            $summary[$id]['schemaerrors'] = sizeof($schemaerrors);
+            $summary[$id]['metadataerrors'] = sizeof($metadataerrors);
 
             // Keep track of the shortest validUntil in the feed
             // Never checks individual EntityDescriptors - just make a reasonably short default if none provided
@@ -450,10 +468,11 @@ class PhphBackEnd {
         $collisions = array_filter($collisions, function($x) { return sizeof($x) > 1; });
 
         // Add the xtra feeds to the summary for the entity
+        $relevantcollisions = g::$config['relevantcollisions'];
+        if ($relevantcollisions[0] == "") { $relevantcollisions = array_keys(g::$config['feeds']); }
         foreach ($collisions as $colid => $colls) {
             foreach ($colls as $fid) {
-                $summary[$fid]['entities'][$colid][0]['collisions']
-                    = array_values(array_diff(array_intersect($colls, g::$config['relevantcollisions']) , array($fid)));
+                $summary[$fid]['entities'][$colid][0]['collisions'] = array_values(array_diff(array_intersect($colls, $relevantcollisions) , array($fid)));
             }
         }
 
@@ -479,30 +498,39 @@ class PhphBackEnd {
                 $dst['publishpath'] = $dst['cachepath'];
                 $dst['filename'] = "tmp-$id.xml";
                 $dst['nosign'] = true;
-            } // only work on final stages ...
+            } else { // only show statusmessages for exported destinations ...
+                $this->status('PENDING', $id, "exporting ...");
+            }// only work on final stages ...
             $xp = xp::xpe();
             $res = $xp->document;
             $entities = $this->get_cached($id);
 
-		    $entitiesDescriptor = $res->createElementNS('urn:oasis:names:tc:SAML:2.0:metadata', 'md:EntitiesDescriptor');
-		    $res->appendChild($entitiesDescriptor);
+            if (sizeof($entities['entities']) == 1) {
+                    $entityID = $e->getAttribute('entityID');
+                    $seen[$entityID] = 1;
+                    $entitiesDescriptor = $res->appendChild($res->importNode($entities['entities'][0], true));
+                    $c++;
+            } else {
+    		    $entitiesDescriptor = $res->createElementNS('urn:oasis:names:tc:SAML:2.0:metadata', 'md:EntitiesDescriptor');
+	    	    $res->appendChild($entitiesDescriptor);
 
-    		//$usagePolicy = $this->softquery($xp, $entitiesDescriptor, 'md:Extensions/mdrpi:PublicationInfo/mdrpi:UsagePolicy');
-    		//$usagePolicy->setAttribute('xml:lang', 'en');
-            //$usagePolicy->appendChild($res->createTextNode('http://www.edugain.org/policy/metadata-tou_1_0.txt'));
+                //$usagePolicy = $this->softquery($xp, $entitiesDescriptor, 'md:Extensions/mdrpi:PublicationInfo/mdrpi:UsagePolicy');
+                //$usagePolicy->setAttribute('xml:lang', 'en');
+                //$usagePolicy->appendChild($res->createTextNode('http://www.edugain.org/policy/metadata-tou_1_0.txt'));
 
-            $seen = array();
-            foreach ($entities['entities'] as $n => $e) {
-                $entityID = $e->getAttribute('entityID');
+                $seen = array();
+                foreach ($entities['entities'] as $n => $e) {
+                    $entityID = $e->getAttribute('entityID');
 
-                if (isset($seen[$entityID])) {
-                    self::say("WARNING duplicate entityID found: $entityID\n");
-                    continue;
+    //                 if (isset($seen[$entityID])) {
+    //                     self::say("WARNING duplicate entityID found: $entityID\n");
+    //                     continue;
+    //                 }
+                    $seen[$entityID] = 1;
+                    $entitiesDescriptor->appendChild($res->importNode($e, true));
+                    $c++;
                 }
-                $seen[$entityID] = 1;
-                $entitiesDescriptor->appendChild($res->importNode($e, true));
-                $c++;
-            }
+		    }
 
             // check the mtime of the old version here and - if neccessary - the hash of the new and old file version here
             // - we only write the new one if it has changed or if we are past the mtime + cacheDuration of the old one
@@ -540,22 +568,21 @@ class PhphBackEnd {
                 $publicationinfo->setAttribute('creationInstant', $creationInstant);
                 $publicationinfo->setAttribute('publisher', $dst['publisher']);
 
-
                 $privatekey = file_get_contents($dst['certspath'] . $privatekeyname);
-                samlxmldsig::sign($xp, $entitiesDescriptor, $certificates[0], $privatekey, $dst['pw'], $dst['signatureMethod'], $dst['digestMethod']);
+                samlxmldsig::signxml($xp, $entitiesDescriptor, $certificates[0], $privatekey, $dst['pw'], $dst['signatureMethod'], $dst['digestMethod'], 0);
                 $publishxml = $xp->document->saveXML(); // need to have it before checking because signature check removes the signature
 
                 sfpc::file_put_contents($dst['publishpath'] . $dst['filename'], $publishxml);
                 if (!$tmp) { // only for published files
                     // testify clones the document so our present signature is keept for later checking
-                    //$this->testify($dst, $xp);
+                    $this->testify($id, $dst, $xp);
                 }
             }
 
             if ($tmp) { continue; } // don't show status messages for non-published files
 
             $this->schemasignatureandmdcheck($id, $xp, $entitiesDescriptor, $dst['schemacheck'], $dst['signaturecheck'], $certificates[0], $dst['metadatacheck']);
-            $validUntil = date_create($xp->query('/md:EntitiesDescriptor/@validUntil')->item(0)->nodeValue)->getTimestamp();
+            $validUntil = date_create($xp->query('/*/@validUntil')->item(0)->nodeValue)->getTimestamp();
             $relativeValidUntil = $this->relativeTime($now, $validUntil);
             $sps  = $xp->query('//md:SPSSODescriptor')->length;
             $idps = $xp->query('//md:IDPSSODescriptor')->length;
@@ -612,6 +639,7 @@ class PhphBackEnd {
                     call_user_func($filterfunc, $this, $id, null, null, $destination, null);
                 }
             }
+            //
         }
         if (isset($this->cached[$id])) {
             return $this->cached[$id];
@@ -640,29 +668,31 @@ class PhphBackEnd {
         return $res;
     }
 
-    private function testify($dst, $xp)
+    private function testify($id, $dst, $xp)
     {
         // clone the document - we will delete the signature and replace all the certificates
         // and we do not want to invalidate the existing signature ....
         $doc = new DOMDocument();
-        $doc->appendChild($doc->importNode($xp->document, true));
+        $doc->appendChild($doc->importNode($xp->document->documentElement, true));
         $testxp = xp::dom($doc);
 
         // remove the signature if any - a new will be created before saving ...
-        $signature = $testxp->query('/md:EntitiesDescriptor/ds:Signature');
+        $signature = $testxp->query('/*/ds:Signature');
         if ($signature->length) {
             $signature->item(0)->parentNode->removeChild($signature->item(0));
         }
 
         // replace all the certs
-        $fn = $dst['certspath'] . $dst['testcert'];
-        if (!file_exists($fn)) { return; }
-        $testcert = samlxmldsig::ppcertificate(file_get_contents($fn), false);
+        list($certificates, $privatekeyname) = self::get_certificates_for_md($dst['certspath'] . $dst['testcert'], 'signing');
+        $testcert = samlxmldsig::ppcertificate($certificates[0], false);
 
         $certs = $testxp->query('//md:KeyDescriptor/ds:KeyInfo/ds:X509Data/ds:X509Certificate');
         foreach ($certs as $cert) {
             $cert->nodeValue = $testcert;
         }
+
+        $privatekey = file_get_contents($dst['certspath'] . $privatekeyname);
+        samlxmldsig::signxml($testxp, $testxp->document->documentElement, $certificates[0], $privatekey, '', $dst['signatureMethod'], $dst['digestMethod'], 0);
         sfpc::file_put_contents($dst['testpublishpath'] . $dst['filename'], $testxp->document->saveXML());
     }
 

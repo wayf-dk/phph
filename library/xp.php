@@ -23,6 +23,7 @@ class xp {
         'http://sdss.ac.uk/2006/06/WAYF' => 'sdss',
         'http://wayf.dk/2014/08/wayf' => 'wayf',
         'http://corto.wayf.dk' => 'corto',
+        'http://refeds.org/metadata' => 'remd',
     );
 
     static $secapseman;
@@ -39,7 +40,10 @@ class xp {
     {
         $doc = new DOMDocument();
         $doc->preserveWhiteSpace = true;
-        if ($xml != null) { $doc->loadXML($xml); }
+        // libxml_use_internal_errors(true);
+        //libxml_clear_errors();
+        if ($xml != null) { $res = $doc->loadXML($xml); }
+        //libxml_get_errors();
         return self::dom($doc);
     }
 

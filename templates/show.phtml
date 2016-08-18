@@ -15,11 +15,14 @@
     $xml = $show['xml'];
     unset($show['xml']);
     $unapproved = '<a href="/approve?' . $_SERVER['QUERY_STRING'] . '">Approve with current ARP</a>';
+    $collisionlinks = array_map(function($col) {return "<a href =\"/show?entityID={$_GET['entityID']}&type=feed&fed=$col\">$col</a>"; }, $summary['collisions']);
+    preg_match("/^WAYF0*(\d+)$/", $summary['id'], $d);
+    $wayfid = isset($d[1]) ? $d[1] : '';
 
 ?>
 <section>
 <section class="half">
-  <h1><?= $summary['organisationdisplayname'] ?></h1>
+  <h1><?= $summary['idpname'] ?: $summary['servicename'] ?: $summary['servicename2'] ?: $summary['organisationdisplayname'] ?: '...' ?></h1>
   <?php
     $types = array('SP', 'IDP', 'AA');
     // $types = array('SP', 'IDP', 'AA', 'R&S', 'CoCo');
@@ -30,10 +33,10 @@
   <dl>
     <dt>IdP name</td><dd><?= $summary['idpdisplay'] ?></dd><br>
     <dt>SP name</td><dd><?= $summary['spdisplay'] ?></dd><br>
-    <dt>Entity ID</dt><dd><?= $summary['entityid'] ?></dd><br>
-    <dt>Types</dt><dd><?= implode(", ", $types); ?></dd><br>
+    <dt>Entity ID</dt><dd><?= $wayfid ? "<a target=\"janus\" href=\"https://janus.wayf.dk/module.php/janus/editentity.php?eid={$wayfid}\">{$summary['entityid']}</a>" : $summary['entityid'] ?></dd><br>
+    <dt>Roles</dt><dd><?= implode(", ", $types); ?></dd><br>
     <dt>Federation</dt><dd><?= $summary['type'] . '/' . $summary['fed']; ?></dd><br>
-    <dt>Collisions</dt><dd><?= join(', ', $summary['collisions']) ?></dd>
+    <dt>Collisions</dt><dd><?= join(', ', $collisionlinks) ?></dd>
   </dl>
 </section>
 <?php if (count($summary['entitycategories'])): ?>
@@ -66,21 +69,22 @@ $ticket = isset($le['ref']) ? $le['ref'] : '';
 </section>
 
 <section>
-  <h2 class="showandhideable" id="attributes">Attributes</h2>
+  <h2 class="showandhideable" id="attributes">Approval</h2>
   <section>
       <form method="post" action="/approve" id="approve">
         <input type="hidden" name="formvalues" value="<?= $key ?>">
         <input type="hidden" name="attrs" id="attrs" value="">
         Ticket ID: <input type="text" name="ticket" value="<?= $ticket ?>">
-        <input type="submit" class="cta" value="Publish" name="approve">
+        <input type="submit" class="cta" value="Publish updated metadata" name="approve">
         <?php if ($unapprovable): ?>
-            <input type="submit" class="cta" value="Unpublish" name="unapprove">
+            <input type="submit" class="cta" value="Unpublish metadata" name="unapprove">
         <?php endif; ?>
         <!-- <?= $unapproved; ?> -->
       </form>
   </section>
+<?php if ($summary['SP']): ?>
   <section class="half">
-    <h3>Supported</h3>
+    <h3>Attributes supported by WAYF</h3>
     <table class="attributes fixed">
       <thead>
         <tr>
@@ -96,7 +100,7 @@ $ticket = isset($le['ref']) ? $le['ref'] : '';
     </table>
   </section>
   <section class="half">
-  <h3>Unsupported</h3>
+  <h3>Attritbutes not supported by WAYF</h3>
     <table class="attributes fixed">
       <thead>
         <tr>
@@ -109,6 +113,7 @@ $ticket = isset($le['ref']) ? $le['ref'] : '';
     </table>
   </section>
  </section>
+ <?php endif; ?>
 <?php endif; ?>
 <section>
   <h2 class="showandhideable" id="flat">Metadata ("flat")</h2>
@@ -129,15 +134,15 @@ $ticket = isset($le['ref']) ? $le['ref'] : '';
 <pre><?= $xml ?></div>
 </section>
 <section>
-<h2 class="showandhideable" id="schema_errors">Schema Errors <?= sizeof($schema_errors); ?></h2>
+<h2 class="showandhideable" id="schema_errors">Number of schema errors: <?= sizeof($schema_errors); ?></h2>
 <pre><?= join("", $schema_errors); ?></pre>
 </section>
 <section>
-<h2 class="showandhideable" id="metadata_errors">Metadata Errors <?= sizeof($metadata_errors); ?></h2>
+<a name="metadataerrors"><h2 class="showandhideable" id="metadata_errors">Number of errors in metadata: <?= sizeof($metadata_errors); ?></h2></a>
 <pre><?= join("\n", $metadata_errors); ?></pre>
 </section>
 <section>
-<h2 class="showandhideable" id="summary">Summary</h2>
+<a name="summary"><h2 class="showandhideable" id="summary">Summary</h2></a>
 <?php
     phphfrontend::myprint_r($summary);
 ?>

@@ -1,273 +1,300 @@
-$(function() {
+// Vue.config.debug = true;
+// Helpers
 
-// Configuration
-var groups = {
-	'Federations': [],
-	'roles': ['SP', 'IDP', 'AA'],
-	'Entitycategories': ['entcat:RaS', 'entcat:CoCo', 'entcat:RaS\.SE', 'entcat:.+:EC'],
-	'Misc': ['approved', 'collisions:.+:Collisions', 'collisions:wayf-fed:WAYF']
-};
-var limit = 100;
-
-
-// Build directory of federations and entities
-var directory = [],
-	counts = {};
-
-for (var fed in json) {
-    fedfed = 'fed:' + fed;
-	directory[fedfed] = [];
-	counts[fedfed] = 0;
-	groups['Federations'].push(fedfed);
-	for (var ent in json[fed]['entities']) {
-		var e = json[fed]['entities'][ent][0]
-		//e.approved = e.approved || 'N/A';
-		e.displayname = '';
-		if (e.collisions && e.collisions.indexOf('wayf-fed') != -1) { e.displayname = '*'; }
-		e.displayname += e.collisions.length ? '* ' : '';
-		//e.cols = e.collisions ? true : false;
-		e.displayname += e.idpname || e.servicename || e.servicename2 || e.organisationdisplayname || '...';
-		//e.displayname += ' ' + e.metadataerrors;
-		e.url = '/show?entityID=' + e.entityid + '&type=' + e.type + '&fed=' + fed;
-		var typeArray = [];
-		e[fed] = true;
-		e.el = getRow(e);
-		counts[fedfed]++;
-		directory[fedfed][ent] = e;
-	}
-}
-
-// Get searchtext from sessionStorage and listen for searches
-var searchText,
-	patterns,
-	buttonpatterns = {},
-	regexps;
-var searchInput = $('#searchInput')
-	.on('input', function() {
-		searchText = $(this).val();
-		patterns = makePatterns(searchText);
-		render();
-	});
-
-// Render buttons for filtering
-var filters = $('#filters'),
-	buttons = [];
-var buttonContainer = $('<div></div>');
-for (var g in groups) {
-	var group = $('<div class="group"></div>');
-	for (var i = 0; i < groups[g].length; i++) {
-		var type = groups[g][i];
-		count(type);
-		var button = new filterButton(type);
-		group.append(button.el);
-		buttons.push(button);
-	}
-	buttonContainer.append(group);
-}
-filters.append(buttonContainer);
-$('#searchForm').after(filters);
-
-// Listen for clear
-$('#searchClear').on('click', function() {
-	sessionStorage.clear();
-	loadSession();
-	render();
-});
-// Load session and render
-loadSession();
-render();
-
-// from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions
-function escapeRegExp(string){
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function count(text) {
-    var subterms = text.split(':');
-    if (subterms.length == 1) {
-        subterms.push('');
-        text += ':';
+var compare = (function () {
+  // This is the interval comparison function
+  // With `~` the first and second works as the start and end interval, third
+  // being the value to check if within interval. Works like:
+  //   `compare("~", 1, 10, 5)`
+  // The interval is defined as [a, b). In the example it would be [1, 10)
+  var compare = function (operator, first, second, third) {
+    if (operator === "~")  {
+      var sec = second.length ? second > third.slice(0, second.length) : true;
+      return first <= third.slice(0, first.length) && sec;
     }
-	var tag = subterms[0];
-	var val = subterms[1];
-    var regexp = '^' + val + '$';
-	regexps = {};
-	regexps[tag] = [new RegExp(regexp, 'i')];
-    var c = 0;
-	for (var fed in directory) {
-		for (var ent in directory[fed]) {
-			if (isMatching(directory[fed][ent])) { c++; }
-		}
-	}
-	counts[text] = c;
+
+    // TODO: Would a runtime error be better so in case of a bad operator, error
+    // handling would be possible?
+    return false;
+  };
+
+  // This is the supported comparisons
+  compare.operators = ["~"];
+
+  return compare;
+})();
+
+function unique(array) {
+  return array.filter( function (value, index, self) {
+    return self.indexOf(value) === index;
+  });
 }
 
-function loadSession() {
-	searchText = sessionStorage.getItem('searchText') || '';
-	searchInput.val(searchText);
-	patterns = makePatterns(searchText);
-	buttonpatterns = JSON.parse(sessionStorage.getItem('buttonpatterns')) || {};
-	// remove feds not in the current page
-	var newfeds = [];
-	for ( f in buttonpatterns['fed'] ) {
-	    if (json[g]) { newfeds.push(g); }
-	}
-	buttonpatterns['fed'] = newfeds;
+function zzzz() {
+  var match,
+    pl     = /\+/g,  // Regex for replacing addition symbol with a space
+    search = /([^&=]+)=?([^&]*)/g,
+    decode = function (s) { return decodeURIComponent(s.replace(pl, " ")); },
+    q  = window.location.search.substring(1);
+
+  urlParams = {};
+  while (match = search.exec(q)) { // eslint-disable-line no-cond-assign
+    urlParams[decode(match[1])] = decode(match[2]);
+  }
+  return urlParams;
 }
 
-function saveSession() {
-	sessionStorage.setItem("buttonpatterns", JSON.stringify(buttonpatterns));
-	sessionStorage.setItem('searchText', searchText);
+function flatten(arrays) {
+  return [].concat.apply([], arrays);
 }
 
-function makePatterns (terms) {
-	//terms = terms.replace('/[-\/\\^$*+?.()|[\]{}]/g', '\\$&'); // Escape stuff
-	terms = terms.split(' ');
-	var subterms;
-	var patterns = {};
-	for (var i = 0; i < terms.length; i++) {
-	    subterms = terms[i].split(':');
-	    if (subterms.length == 1) { subterms.unshift('keywords'); }
-	    if (patterns[subterms[0]] == undefined) { patterns[subterms[0]] = []; }
-		patterns[subterms[0]].push('^' + subterms[1]);
-	}
-	return patterns;
+function entity(e) {
+  e.displayName = e.idpname || e.servicename || e.servicename2 || e.organisationdisplayname || "...";
+  e.displayName  = e.displayName.trim();
+
+  e.url = "/show?entityID=" + e.entityid + "&type=" + e.type + "&fed=" + e.fed;
+  e.fedurl = "/mdfileview?type=" + e.type + "&fed=" + e.fed;
+
+  e.displayFederation = e.fed + (e.collisions.length !== 0 ? " [" + e.collisions.length + "]" : "");
+
+  e.displayEntityId = e.entityid;
+
+  e.roles = ["IDP", "SP", "AA"].reduce(function(array, role) {
+    return e[role] ? array.concat(role) : array;
+  }, []);
+  //e.roles = e.roles.concat(e.entcat).sort();
+  e.displayRoles = e.roles.join(" ");
+  e.displayEncats = e.entcat.join(" ");
+
+  e.displayApproved = e.approved ? "✔" : "";
+
+  e.displayErrors  = e.schemaerrors ? e.schemaerrors : "-";
+  e.displayErrors += " / ";
+  e.displayErrors += e.metadataerrors ? e.metadataerrors : "-";
+
+  var domains = e.entityid.match(/((?:[\w-\.]+\.[\w]+)+)+/g);
+  if (domains) {
+    domains = domains.map(function(w) { return "." + w; });
+    e.keywords.unshift.apply(e.keywords, domains);
+  }
+  e.keywords.unshift(e.entityid);
+  e.keywords.unshift(e.fed);
+  e.alsoin = "This entityID ";
+  e.alsoin += e.collisions.length ? "also appears in: " + e.collisions.join(", ") : "does not appear in other federations";
+  return e;
 }
 
-function isMatching (entity) {
-	var found = true;
-	for (var h in regexps) {
-	    if (regexps[h].length == 0) { continue; }
- 	    var ent = entity[h];
-	    var type = typeof ent;
-	    if (type === 'undefined' || ent === null) { return false; }
-        if (type === 'boolean') { found = found && ent; continue; }
-        if (type === 'string') { ent = [ent]; }
- 	    for (var i = 0; i < regexps[h].length; i++) {
- 	        var pfound = false;
-            for (var j = 0; j < ent.length; j++) {
-                 pfound = pfound || regexps[h][i].test(ent[j]);
-             }
-            found = found && pfound;
-        }
-	}
-	return found;
+// Flatten the JSON object into an array of entities
+function entityList(jsonData) {
+  var entities = Object.keys(jsonData).reduce(function(array, federation) {
+    var fedEntities = jsonData[federation].entities;
+    // groups.federations.push('fed:' + federation);
+    var entities = Object.keys(fedEntities).reduce(function(a, entity) {
+      return a.concat(fedEntities[entity][0]);
+    }, []);
+    return array.concat(entities);
+  }, []);
+
+  return entities.map(entity);
 }
 
-function filterButton(text) {
-	var checkOn = 'fa-check-square-o',
-		checkOff = 'fa-square-o',
-		el = this.el = $('<button class="tiny"></button>'),
-		icon = this.icon = $('<i class="fa fa-lg"></i>');
-    var subterms = text.split(':');
-    if (subterms.length == 1) { subterms.push(''); text += ':'; }
-	var tag = subterms[0];
-	var display = subterms.length == 3 ? subterms[2] : subterms[1];
-	//if (text == '.*') { text = tag; }
-	el.html((display || tag)  + ' ' + counts[text] + '&nbsp;&nbsp;');
-	el.append(icon);
-    var regexp = '^' + subterms[1] + '$';
+// Filter an array of records by the terms (string, actual terms separated by spaces), using the aliases to map from userterms to possible actual keys
+// A term is a [<searchkey>:]<searchpattern>. If no searchkey is provided it defaults to 'keywords' which might be aliased
+// Patterns is a map of prepared search regexps - can be used in cases where you don't want the default behavior for search
+// Aliases contains a map of <searchkey> to actual key used in the objects in records
+// RegExp quoting from:
+// http://closure-library.googlecode.com/git-history/docs/local_closure_goog_string_string.js.source.html#line1021
+function keywordFilter(termstring, records, aliases) {
+  var terms = unique(termstring.trim().split(/\s+/));
+  var patterns = {};
+  for (var i = 0; i < terms.length; i++) {
+    var subterms = terms[i].split(":");
+    if (subterms.length > 1) {
+      // we have a keyname - is it one we use in the records? if not it is part of the searchterm and the key is keywords
+      if (subterms[0] in records[0]) { subterms = [subterms[0], subterms.slice(1).join(":")]; }
+      else {                           subterms = ["keywords", subterms.slice(0).join(":")]; }
+    } else { // no key - use keywords
+      subterms.unshift("keywords");
+    }
+    var not = subterms[1].indexOf("!") === 0;
+    if (not) { subterms[1] = subterms[1].substr(1); }
 
-	var update = this.update = function() {
-	    if (buttonpatterns[tag] == undefined) { buttonpatterns[tag] = []; }
-		var on = buttonpatterns[tag].indexOf(regexp) != -1;
-		if (on) {
-			el.removeClass('secondary');
-			icon.addClass(checkOn);
-			icon.removeClass(checkOff);
-		} else {
-			el.addClass('secondary');
-			icon.removeClass(checkOn);
-			icon.addClass(checkOff);
-		}
-	}
-	el.click(function() {
-	    if (buttonpatterns[tag] == undefined) { buttonpatterns[tag] = []; }
-		var index = buttonpatterns[tag].indexOf(regexp);
-		if (index == -1)
-		    buttonpatterns[tag].push(regexp);
-		else
-			buttonpatterns[tag].splice(index, 1);
-		el.blur();
-		render();
-	});
-}
-
-var timeout;
-function render() {
-
-	// Update search gui
-	saveSession();
-	for (var i = 0; i < buttons.length; i++)
-		buttons[i].update();
-
-	// Get results
-	var results = [];
-	regexps = {};
-	var patternlist = [ patterns, buttonpatterns ];
-	for (var h = 0; h < patternlist.length; h++) {
-	    currentpatterns = patternlist[h];
-        for (var k in currentpatterns) {
-    	    if (regexps[k] == undefined) { regexps[k] = []; }
-            for (var i = 0; i < currentpatterns[k].length; i++) {
-                regexps[k].push(new RegExp(currentpatterns[k][i], 'i'));
-            }
-        }
-	}
-
-	for (var fed in directory) {
-		for (var ent in directory[fed]) {
-			var e = directory[fed][ent];
-//			if (isType(e) && isMatching(e)) results.push(e);
-			if (isMatching(e)) results.push(e);
-		}
-	}
-    results.sort(function(a, b){
-        return a.entityid.localeCompare(b.entityid);
+    // Finds the first operator specified
+    var operator = compare.operators.find(function(op) {
+      return subterms[1].indexOf(op) === 0;
     });
-	// Render
-	var previews = $('#previews');
-	var frag = $(document.createDocumentFragment());
-	var stop = Math.min(limit, results.length);
-	// var stop = Math.min(results.length);
-	for (var i = 0; i < stop; i++)
-		frag.append(results[i].el);
-	previews.html(frag);
 
-	// Lazy load trigger
-	clearTimeout(timeout);
-	if (i < results.length) {
-		timeout = setTimeout(function() {
-			for (i; i < results.length; i++)
-				previews.append(results[i].el);
-		}, 500);
-	}
+    if (operator) {
+      subterms[1] = subterms[1].substr(operator.length);
+    } else if (subterms[1][0] != "^" && subterms[1].slice(-1) != "$") { // non pre-regexps - escape them
+      subterms[1] = "\\b" + subterms[1].replace(/([-()\[\]{}+?*.$\^|,:#<!\\])/g, "\\$1").replace(/\x08/g, "\\x08"); // eslint-disable-line no-control-regex
+    }
+    var alias = aliases[subterms[0]];
+    if (alias)  { subterms[0] = alias; }
+    if (patterns[subterms[0]] == undefined) { patterns[subterms[0]] = []; }
+    patterns[subterms[0]].push({re: new RegExp(subterms[1] , "i"), not: not, op: operator, value: subterms[1]});
+  }
 
-	$('#status').html(results.length + ' matches');
+  var result = [];
+  rec: for (i = 0; i < records.length; i++) {
+    var found = true;
+    record = records[i];
+    for (var key in patterns) {
+      if (!found) { continue rec; } // stop testing if we know the rec is not going to make it
+      var value = record[key];
+      if (value == undefined) { found = found && not; continue; } // not found
+      var type = typeof value;
+      if (type === "boolean") { found = found && value != patterns[key][0]["not"]; continue; }
+      if (type === "string" || type === "integer") { value = [value]; }
+      for (var h = 0; h < patterns[key].length; h++) {
+        var pfound = false;
+        for (var j = 0; j < value.length; j++) {
+          if (pfound) { break; }
+          var p = patterns[key][h];
+          if (p.op) {
+            var values = p.value.split(",");
+            pfound = compare("~", values[0], values[1], value[j]);
+          } else {
+            pfound = patterns[key][h]["re"].test(value[j]);
+          }
+        }
+        found = found && (pfound != patterns[key][h]["not"]); // poor mans xor
+      }
+    }
+    if (found) { result.push(record); }
+  }
+  return result;
 }
 
-function getRow(entity) {
-	var row = $('<tr></tr>');
-	var labels = [];
-	for (var i = 0; i < groups['roles'].length; i++) {
-	    var role = groups['roles'][i];
-		if (entity[role]) { labels.push(role); }
-	}
-	var columns = [
-		entity.displayname,
-		entity.entityid,
-		labels.concat(entity.entcat).join(', '),
-		entity.fed,
-		(entity.approved ? '<i class="fa fa-lg fa-check"></i>' : ''),
-		(typeof entity.schemaerrors == 'undefined' ? '-' : entity.schemaerrors) + ' / ' +
-		    (typeof entity.metadataerrors == 'undefined' ? '-' : entity.metadataerrors)
-	];
-	for (var i = 0; i < columns.length; i++) {
-		var link = $('<a></a>').html(columns[i]).attr('href', entity.url);
-		var cell = $('<td></td>').html(link);
-		row.append(cell);
-	}
-	return row.get()[0];
+function buttons() {
+  var buttons = Object.keys(groups).map(function(group) {
+    return groups[group].map(function(groupItem) {
+      var subterms = groupItem.split(";");
+      var label = subterms.pop();
+      var filter = subterms.join(" ");
+      var counts = keywordFilter(filter, entities, {}).length;
+      return {
+        text: label + " " + counts,
+        filter: filter,
+        checked: false,
+      };
+    });
+  });
+  return buttons;
 }
 
+function get(url) {
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.open("GET", url, false);
+  xmlhttp.send(null);
+  return xmlhttp.responseText;
+}
+
+var entities;
+var usecache = ["/", "/overview"].indexOf(window.location.pathname) >= 0; // only for large /overview - does not use querystring - all others must bypass the cache
+var refresh = true;
+
+if (window.name && usecache) {
+  entities = JSON.parse(window.name);
+  entities = entities[window.location.hostname];
+  refresh = entities == undefined;
+}
+if (refresh) {
+  entities = entityList(JSON.parse(get("/overviewjs?" + window.location.search.substring(1))));
+  entities.sort(function(a, b) {
+    return a.entityid.localeCompare(b.entityid);
+  });
+  if (usecache) {
+    var ent = {};
+    ent[window.location.hostname] = entities;
+    window.name = JSON.stringify(ent);
+  }
+}
+
+var params = zzzz();
+
+var tableContainer = null;
+var rowHeight = 27;
+
+var vm = new Vue({
+  el: "#app",
+  data: {
+    search: "",
+    start: 0,
+    end: 1,
+    offset: "0px",
+    divOffset: "0px",
+    divHeight: "500px",
+    buttons: buttons(),
+  },
+  ready: function() {
+    if (params["filter"] && sessionStorage.getItem("filter") != params["filter"]) {
+      this.search = params["filter"];
+    } else {
+      var btns = JSON.parse(sessionStorage.getItem("buttons")) || [];
+      for (var i = 0; i < btns.length; i++) {
+        for (var j = 0; j < btns[i].length; j++) {
+          this.buttons[i][j].checked = btns[i][j].checked;
+        }
+      }
+      this.search  = sessionStorage.getItem("search") || this.search;
+    }
+  },
+  methods: {
+    clear: function() {
+      this.buttons = buttons();
+      this.search = "";
+    },
+    scroll: function() {
+      var divOffset = this.divOffset = tableContainer.scrollTop;
+      var divHeight = this.divHeight = tableContainer.getBoundingClientRect().height;
+
+      this.start = Math.floor(divOffset / rowHeight);
+      this.end = this.start + Math.ceil(divHeight / rowHeight) + 50;
+
+      this.offset = -(divOffset % rowHeight) + "px";
+      this.divOffset = divOffset + "px";
+    },
+  },
+  computed: {
+    entities: function() {
+      var search = flatten(this.buttons).map(function(button) {
+        if (button.checked) { return button.filter; }
+        return "";
+      });
+      var searchtext = unique((search.join(" ") + " " + this.search).trim().split(/\s+/)).join(" ");
+
+      var params = zzzz();
+      delete params["filter"];
+      if (searchtext) {
+        sessionStorage.filter = params["filter"] = searchtext;
+      }
+      var delim = "";
+      var q = "?";
+      for (var x in params) {
+        q += delim + x + "=" + encodeURIComponent(params[x]);
+        delim = "&";
+      }
+      history.replaceState({}, "", q);
+      var res = keywordFilter(searchtext, entities, {});
+      return res;
+    },
+    tableHeight: function() {
+      return (1 + (this.entities.length + 1) * rowHeight) + "px";
+    },
+  },
+  watch: {
+    entities: function() {
+      sessionStorage.setItem("search", vm.search);
+      sessionStorage.setItem("buttons", JSON.stringify(vm.buttons));
+    },
+  },
 });
+
+
+tableContainer = document.querySelector(".table-container");
+tableContainer.style.height = (window.innerHeight - tableContainer.offsetTop - 25) + "px";
+window.addEventListener("resize", function() {tableContainer.style.height = (window.innerHeight - tableContainer.offsetTop - 25) + "px";}, false);
+rowHeight = document.querySelector(".entities tr").getBoundingClientRect().height;
+
+vm.scroll();

@@ -7,9 +7,13 @@
 class sfpc {
     static function file_put_contents($filename, $content, $mtime = null)
     {
-        $tempnam = tempnam(pathinfo($filename,PATHINFO_DIRNAME), 'phph-tmp-file-');
+        $dir = pathinfo($filename,PATHINFO_DIRNAME);
+        if (!file_exists($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        $tempnam = tempnam($dir, 'phph-tmp-file-');
         file_put_contents($tempnam, $content);
-        chmod($tempnam, 0664); // make alle files readable by world
+        chmod($tempnam, 0644); // make alle files readable by world
         if ($mtime) { touch($tempnam, $mtime); }
         rename($tempnam, $filename);
     }

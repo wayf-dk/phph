@@ -18,24 +18,27 @@ class pseudoca {
     static $public_key_der;
     static $private_key_info;
     static $digest_algo;
+    static $use_hsm = false;
 
-    static function setprivatekey($private_key, $digest_algo)
+    static function setprivatekey($private_key, $certificate, $digest_algo)
     {
-        self::$private_key = openssl_pkey_get_private('file://' . $private_key);
-        if (self::$private_key === false) {
-            trigger_error(sprintf("Error opening private key: %s %s\n", $private_key, openssl_error_string()));
+        self::$private_key = file_get_contents($private_key);
+        self::$use_hsm = substr(self::$private_key, 0, 4) === 'hsm:';
+        if (!self::$use_hsm) {
+            self::$private_key = openssl_pkey_get_private(self::$private_key);
+            if (self::$private_key === false) {
+                trigger_error(sprintf("Error opening private key: %s %s\n", $private_key, openssl_error_string()));
+            }
         }
         self::$digest_algo = $digest_algo;
-        self::$private_key_info = openssl_pkey_get_details(self::$private_key);
+        self::$private_key_info = openssl_pkey_get_details(openssl_pkey_get_public($certificate));
         self::$public_key_der = base64_decode(preg_replace('/(-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----)/', '', self::$private_key_info['key']));
     }
 
     static function selfsign($cn)
     {
         $tbscertificate = self::TBSCertificate($cn, self::$public_key_der, self::$digest_algo);
-        $signature = self::my_rsa_encode($tbscertificate, self::$digest_algo);
-        //$signature = "\x0042";
-
+        $signature = self::$use_hsm ? self::hsm_encode($tbscertificate, self::$digest_algo) : self::my_rsa_encode($tbscertificate, self::$digest_algo);
 
         $new_cert =  self::sequence(
             $tbscertificate
@@ -161,7 +164,13 @@ class pseudoca {
         return "\x02" . self::len($der) . strrev($der);
     }
 
-    static function my_rsa_encode($data, $algo) {
+    static function hsm_encode($data, $algo)
+    {
+        return "\x00" . samlxmldsig::signHSM($data, self::$private_key, $algo);
+    }
+
+    static function my_rsa_encode($data, $algo)
+    {
         $digest = hash($algo, $data, true);
 
         $t = self::sequence(

@@ -9,7 +9,7 @@ class softquery
 
     static function query($xp, $context, $query, $rec = null, $before = false)
     {
-        // $query always starts with / ie. is alwayf 'absolute' in relation to the $context
+        // $query always starts with / ie. is always 'absolute' in relation to the $context
         $attr = false;
         // split in path elements, an element might include an attribute expression incl. value eg.
         // /md:EntitiesDescriptor/md:EntityDescriptor[@entityID="https://wayf.wayf.dk"]/md:SPSSODescriptor
@@ -33,7 +33,9 @@ class softquery
                 list($dummy, $ns, $element, $position, $attribute, $value) = $d;
 
                 if ($element) {
-                    if ($position) {
+                    if ($position == 0) { // [0] does not exists so always add the element - we still get the path though
+                        $newcontext = self::createElementNS($xp, $ns, $element, $context, $before);
+                    } else if ($position) {
                         $i = 1;
                         $newcontext = null;
                         while ($i <= $position) {
@@ -65,7 +67,7 @@ class softquery
 
     static function create($xp, $context, $query, $rec = null, $before = null)
     {
-        // $query always starts with / ie. is alwayf 'absolute' in relation to the $context
+        // $query always starts with / ie. is always 'absolute' in relation to the $context
         $attr = false;
         // split in path elements, an element might include an attribute expression incl. value eg.
         // /md:EntitiesDescriptor/md:EntityDescriptor[@entityID="https://wayf.wayf.dk"]/md:SPSSODescriptor

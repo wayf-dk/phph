@@ -1,0 +1,49 @@
+<section class="flex">
+<?php
+    $path = "feed";
+    $sumidps = $sumsps = 0;
+    $dirs = $superview[$path];
+    foreach ( $dirs as $dir => $mdfiles ) {
+        print <<<eob
+        <table class="superview"><tr><th>Feed</th><th>XML</th><th>Errs</th><th>IdPs</th><th>SPs</th><th>Refresh In</th><th>Feed URL</th></tr>
+eob;
+        foreach($mdfiles as $fed => $mdfile) {
+            extract($mdfile);
+            $sumidps += $idps;
+            $sumsps  += $sps;
+            print <<<eob
+<tr>
+	<td>
+		<a href="mdfileview?type=$path&fed=$name">
+			$name
+		</a>
+	</td>
+	<td>
+		<a href="raw?type=$path&fed=$name">
+			XML
+		</a>
+	</td>
+	<td>
+	    $mderrs
+    </td>
+	<td>
+		$idps
+	</td>
+	<td>
+		$sps
+	</td>
+	<td>
+		$delta
+	</td>
+	<td>
+		<a href="$url">$url</a>
+	</td>
+</tr>
+eob;
+        }
+        $summa = $sumidps+$sumsps;
+        print "<tr><td>Summa</td><td></td><td>$sumidps</td><td>$sumsps</td><td></td><td>Entities $summa</td></tr>";
+        print "</table>";
+}
+?>
+</section>

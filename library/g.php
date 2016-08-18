@@ -5,6 +5,7 @@ class errors {
 }
 
 class g {
+    static $instance;
     static $approot;
     static $mddirs;
     static $config = array();
@@ -18,7 +19,8 @@ class g {
     static function init($config)
     {
         openlog($config['syslogident'], $config['production'] ? 0 : LOG_PERROR, LOG_LOCAL0);
-
+        self::$instance = $config['instance'];
+        g::$logtag = g::$now = time();
         self::$config = array_replace_recursive($config, self::$config);
         self::$config['seirogetacytitne'] = array_flip(self::$config['entitycategories']);
         foreach(self::$config as $k => $v) {
@@ -45,11 +47,12 @@ class g {
                 }
                 $dst[$k] = self::fixpath($k, $dst[$k]);
             }
-            // add postfilters to published feeds
-            if ($dst['filename']) { $dst['filters'] = array_merge($dst['filters'], $dst['publishfilters']); }
+            // add postfilters to 'final' feeds
+            if ($dst['final']) { $dst['filters'] = array_merge($dst['filters'], $dst['publishfilters']); }
             $dst['id'] = $id;
+
         }
-    }
+   }
 
     static function fixpath($parameter, $path)
     {
@@ -117,7 +120,7 @@ class g {
         // The \b at the end is to make sure that we always get an entry for secs in $d
         $durationinsecs = 0;
         $secs = array(0, 365 * 86400, 30 * 86400, 86400, 3600, 60, 1);
-        if (preg_match('/^P(\d+Y)?(\d+M)?(\d+D)?T(\d+H)?(\d+M)?(\d+S)?(\b)?$/', $duration, $d)) {
+        if (preg_match('/^P(\d+Y)?(\d+M)?(\d+D)?T?(\d+H)?(\d+M)?(\d+S)?(\b)?$/', $duration, $d)) {
             foreach ($secs as $i => $s) {
                 $durationinsecs += $s * $d[$i];
             }

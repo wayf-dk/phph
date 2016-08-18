@@ -13,7 +13,7 @@ class phphfrontend {
             if (isset($_SESSION['redirect'])) { header("Location: " . $_SESSION['redirect']); }
         }
         if (!$users || empty($_SESSION['SAML']) || !in_array($_SESSION['SAML']['attributes']['eduPersonPrincipalName'][0], $users)) {
-            $error = "Only authenticated users are allowed to make changes.";
+            $error = "Only authorized users are allowed to make changes.";
             if ($redirect) { header("Location: $redirect" . "&error=" . rawurlencode($error) ); }
             else {
                 header("HTTP/1.1 401 Unauthorized");
@@ -25,7 +25,7 @@ class phphfrontend {
 
     static function readme__($path)
     {
-        $md = file_get_contents(dirname(__DIR__) .'/doc/README.md');
+        $md = file_get_contents('README.md', true);
         preg_match_all('/ *(#+) (.*)/m', $md, $d);
         $toplevel = strlen($d[1][0]);
         $index = self::indexify($d[1], $d[2], $toplevel + 1, $toplevel + 2);
@@ -158,14 +158,16 @@ class phphfrontend {
         foreach($dstRankSame as $rs) {
             $x = join(', ', g::$config['destinations'][$rs]['filters']);
             $i = $dotview['published'][$rs];
-            $viz .= "{ node [label=\"$i\n$rs\n$x\" penwidth=0.5 fillcolor=\"#c7e9c0\",style=filled URL=\"mdfileview?type=published&fed=$rs\"]  \"y-$rs\"};\n";
+            $filename = g::$config['destinations'][$rs]['filename'];
+            $viz .= "{ node [label=\"$i\n$rs\n$x\n$filename\" penwidth=0.5 fillcolor=\"#c7e9c0\",style=filled URL=\"mdfileview?type=published&fed=$rs\"]  \"y-$rs\"};\n";
         }
 
         foreach($finalRankSame as $rs) {
             $x = join(', ', g::$config['destinations'][$rs]['filters']);
             $type = g::$config['destinations'][$rs]['filename'] ? 'published' : 'tmp';
+            $filename = g::$config['destinations'][$rs]['filename'];
             $i = $dotview[$type][$rs];
-            $viz .= "{ node [label=\"$i\n$rs\n$x\" penwidth=0.5 fillcolor=\"#a1d99b\",style=filled  URL=\"mdfileview?type=$type&fed=$rs\"]  \"z-$rs\"};\n";
+            $viz .= "{ node [label=\"$i\n$rs\n$x\n$filename\" penwidth=0.5 fillcolor=\"#a1d99b\",style=filled  URL=\"mdfileview?type=$type&fed=$rs\"]  \"z-$rs\"};\n";
         }
 
         //print "<pre>"; print_r(g::$config); exit;
@@ -287,6 +289,9 @@ class phphfrontend {
                     $attrno++;
                 }
             }
+            if ($post['role'] === 'IDP') {
+               softquery::query($xp2, $ent2, '/md:IDPSSODescriptor');
+            }
         }
 
         $loginfo = array(
@@ -319,75 +324,69 @@ class phphfrontend {
         print self::render('superview', compact('superview'));
     }
 
+    static function mecview__() {
+        $superview = self::superviewinfo();
+        print self::render('mecview', compact('superview'));
+    }
+
     static function mdfileview__() {
         extract(g::ex($_GET, 'fed', 'type', 'errs'));
-
-        $summary = self::summary($type, $fed);
-        $overview[$fed] = $summary;
+        $filename = basename(self::fn($fed, $type));
+//        $summary = self::summary($type, $fed);
+//        $overview[$fed] = $summary;
         //print "<pre>";    print_r($summary); print "</pre>";
-        if ($errs) {
-            $mdfileview_cache = "/tmp/phph-mdfileview-$type-$fed-cache.json";
-            $feed = self::fn($fed, $type);
-            $feedmtime = filemtime($feed);
-            if (!file_exists($mdfileview_cache) || $feedmtime != filemtime($mdfileview_cache)) {
-                $xp = xp::xpFromFile(self::fn($fed, $type));
-                $xp2 = xp::xpFromString('<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"></md:EntitiesDescriptor>');
-                $doc = $xp2->document->documentElement;
-
-                $entities = $xp->query('//md:EntityDescriptor');
-                // add one to be replaced immediately ...
-                if ($entities->length) {
-                    $e = $xp2->document->importNode($entities->item(0), true);
-                    $doc->appendChild($e);
-                }
-                foreach($entities as $x) {
-                    $e = $xp2->document->importNode($x, true);
-                    $doc->replaceChild($e, $doc->firstChild);
-                    $metadata_errors = PhphBackEnd::check_source($fed, $xp2);
-                    $schema_errors = PhphBackEnd::verifySchema($xp2, 'ws-federation.xsd');
-                    $entityID = $x->getAttribute('entityID');
-                    $overview[$fed]['entities'][$entityID][0]['schemaerrors'] = sizeof($schema_errors);
-                    $overview[$fed]['entities'][$entityID][0]['metadataerrors'] = sizeof($metadata_errors);
-                }
-                $json = json_encode($overview);
-                sfpc::file_put_contents($mdfileview_cache, $json);
-                touch($mdfileview_cache, $feedmtime); // feed's mtime is when cacheDuration runs out ...
-            } else {
-                $json = file_get_contents($mdfileview_cache);
-            }
-        } else {
-            $json = json_encode($overview);
-        }
         //print "<pre>";    print_r(json_decode($json, 1)); print "</pre>";
-        print self::render('overview', compact('json'));
+        $buttons = json_encode(g::$config['buttons']);
+        print self::render('overview', compact('buttons', 'fed', 'type', 'filename'));
+    }
+
+    static function overviewjs__($path) {
+        extract(g::ex($_GET, 'fed', 'type'));
+
+        $feeds = array();
+        if ($fed) { // && array_key_exists($fed, g::$config['feeds'])) {
+            $feeds[$fed] = self::summary($type, $fed);
+        } else {
+            foreach(g::$config['feeds'] as $fed => $feed) {
+                $dst = g::$config['destinations'][$feed];
+                $fn = $dst['cachepath'] . "summary-$feed.json";
+                if (!file_exists($fn)) { errors::$errors[] = "Missing needed file: $fn"; continue; }
+
+                $file = json_decode(file_get_contents($fn), 1);
+                $approvedfile = $dst['approvedpath']. "approved-$fed.xml";
+                if (!file_exists($approvedfile)) {
+                    errors::$errors[] = "Missing needed approved file: $approvedfile";
+                } else {
+                    //if (errors::$errors) { continue; }
+                    $xp = xp::xpFromFile($approvedfile);
+                    $approvedentities = $xp->query('md:EntityDescriptor/md:Extensions/wayf:log[1][@approved="true"]/../..'); // find the entity not the wayf:log
+                    foreach($approvedentities as $ent) {
+                        $entityID = $ent->getAttribute('entityID');
+                        if (isset($file['entities'][$entityID])) {
+                            $file['entities'][$entityID][0]['approved'] = true;
+                        }
+                    }
+                }
+                // filter duplicates only in non-superfeds feds
+                if (!in_array($fed, g::$config['superfeds'])) {
+                    $file['entities'] = array_filter($file['entities'], function($a) {return !array_intersect(g::$config['superfeds'], $a[0]['collisions']);});
+                }
+                $feeds[$feed] = $file;
+            }
+        }
+
+        // add xtra entries for client performance testing - remember it is number of entities^x
+        //foreach(range(1,4) as $i) foreach($feeds as $feed => $xxx) { $feeds["{$feed}$i"] = $xxx; }
+
+        $json = json_encode($feeds);
+        //print "<pre>";    print_r($feeds); print "</pre>";
+        header("Content-type: application/json");
+        print self::render('overviewjs', compact('json'), false);
     }
 
     static function overview__($path) {
-
-        $feeds = array();
-
-        foreach(g::$config['feeds'] as $fed => $feed) {
-            $dst = g::$config['destinations'][$feed];
-            $fn = $dst['cachepath'] . "summary-$feed.json";
-            if (!file_exists($fn)) { errors::$errors[] = "Missing needed file: $fn"; continue; }
-            $file = json_decode(file_get_contents($fn), 1);
-            $approvedfile = $dst['approvedpath']. "approved-$fed.xml";
-            if (!file_exists($approvedfile)) {
-                errors::$errors[] = "Missing needed approved file: $approvedfile";
-            } else {
-                //if (errors::$errors) { continue; }
-                $xp = xp::xpFromFile($approvedfile);
-                $approvedentities = $xp->query('md:EntityDescriptor/md:Extensions/wayf:log[1][@approved="true"]/../..'); // find the entity not the wayf:log
-                foreach($approvedentities as $ent) {
-                    $entityID = $ent->getAttribute('entityID');
-                    $file['entities'][$entityID][0]['approved'] = true;
-                }
-            }
-            $feeds[$feed] = $file;
-        }
-        $json = json_encode($feeds);
-        //print "<pre>";    print_r($feeds); print "</pre>";
-        print self::render('overview', compact('json'));
+        $buttons = json_encode(g::$config['buttons']);
+        print self::render('overview', compact('buttons'));
     }
 
     static function debug__($path)
@@ -396,11 +395,9 @@ class phphfrontend {
     }
 
     static function show__($path) {
+        //print "<pre>"; print_r($_POST); print "</pre>";
+        //print "<pre>"; print_r(self::form2hierachial($_POST)); print "</pre>";
         extract(g::ex($_GET, 'entityID', 'fed', 'type'));
-
-        $formvalues = compact('entityID', 'fed', 'type');
-        $key = uniqid();
-        $_SESSION['formvalues'][$key] = $formvalues;
 
         $show = $show2 = $show3 = array();
         $xp = xp::xpFromFile(self::fn($fed, $type));
@@ -408,6 +405,11 @@ class phphfrontend {
         $xpath = '//md:EntityDescriptor[@entityID="' . $entityID . '"][1]';
         $entity = $xp->query($xpath)->item(0);
         $summary = PhphBackEnd::summary($xp, $entity, $fed, $type);
+
+        $formvalues = compact('entityID', 'fed', 'type');
+        $formvalues['role'] = $summary['SP'] ? 'SP' : 'IDP';
+        $key = uniqid();
+        $_SESSION['formvalues'][$key] = $formvalues;
 
         $fn = g::$config['destinations'][$fed]['cachepath'] . "summary-$fed.json";
         if (file_exists($fn)) {
@@ -424,7 +426,7 @@ class phphfrontend {
         $unapprovable = false;
         $logentries = array();
 
-        if ($approvable = ($summary['SP'] && file_exists($approvedfile) && $type === 'feed')) {
+        if ($approvable = (file_exists($approvedfile) && $type === 'feed')) {
 
             $xp2 = xp::xpFromFile($approvedfile);
     //        $granted = $xp->query($requestedattributesquery, $entity);
@@ -504,24 +506,31 @@ class phphfrontend {
         $xtraats = json_encode($xtraats);
 
         $show = flatten::flattenx($xp, $entity, '/md:Extensions/wayf:wayf/wayf:', samlmdxmap::$roles, samlmdxmap::$xmap);
+        $total = array();
+        foreach($show as $superkey => $vals) {
+            $total += $vals;
+        }
 
-       $show['xml'] = htmlspecialchars(xp::pp($entity));
+        $show['xml'] = htmlspecialchars(xp::pp($entity));
 
         // make a document with only this entity for metadata conformance testing ...
-        $doc = $xp->document;
-        $newentity = $entity->cloneNode(true);
-        $empty = $doc->documentElement->cloneNode(false);
-        $doc->documentElement->parentNode->replacechild($empty, $doc->documentElement);
-        $empty->appendChild($newentity);
-        $metadata_errors = PhphBackEnd::check_source($fed, $xp);
-        $schema_errors = PhphBackEnd::verifySchema($xp, 'ws-federation.xsd');
+        $newxp = xp::xpe();
+        $doc = $newxp->document;
+        $ents = $doc->createElementNS('urn:oasis:names:tc:SAML:2.0:metadata', 'md:EntitiesDescriptor');
+  		$doc->appendChild($ents);
+        $ents->appendChild($doc->importNode($entity, true));
+
+        $metadata_errors = PhphBackEnd::check_source($fed, $newxp);
+        $schema_errors = PhphBackEnd::verifySchema($newxp, 'ws-federation.xsd');
 
         // we only use the message ...
         $metadata_errors = array_map(function($a) { return $a->message; }, $metadata_errors);
+        $summary['metadataerrors'] = sizeof($metadata_errors);
         $schema_errors = array_map(function($a) { return $a->message; }, $schema_errors);
 
         print self::render('show', compact('show', 'ats', 'summary', 'key', 'xtraats', 'approvable', 'unapprovable',
-             'metadata_errors', 'schema_errors', 'logentries', 'xxx'));
+             'metadata_errors', 'schema_errors', 'logentries', 'xxx', 'res'));
+
     }
 
     static function superviewinfo($update = true)
@@ -530,10 +539,11 @@ class phphfrontend {
 
         $types = array('feed', 'published', 'approved', 'tmp');
 
-        $superviewcache = '/tmp/phph-superview-cache.json';
+        $superviewcache = "/tmp/" . g::$instance . "-superview-cache.json";
+
         $superview = array_fill_keys($types, array());
         if (file_exists($superviewcache)) { $superview = json_decode(file_get_contents($superviewcache), 1);  }
-        if ($superview && !$update) { return $superview; }
+        //if ($superview && !$update) { return $superview; }
 
         foreach(g::$config['destinations'] as $id => $dest) {
             foreach($types as $type) {
@@ -572,10 +582,12 @@ class phphfrontend {
                               'sps'    => $sps,
                               'mtime'  => $mtime,
                               'fn'     => $mdfile,
+                              'basename' => basename($mdfile),
                               'serrs'  => $schemaerrors,
-                              'mderrs' => $metadataerrors);
+                              'mderrs' => $metadataerrors,
+                              'url'    => $dest['url']);
                 }
-                $superview[$type][$path][$id]['delta'] = self::relativeTime($superview[$type][$path][$id]['mtime'], time());
+                $superview[$type][$path][$id]['delta'] = self::relativeTime(time(), $superview[$type][$path][$id]['mtime']);
             }
         }
         sfpc::file_put_contents($superviewcache, json_encode($superview));
@@ -685,11 +697,12 @@ class phphfrontend {
 
     static function myprint_r($var) {
         if (is_array($var)) {
-            echo "<table border=1 cellspacing=0 cellpadding=3>";
+            echo "<table class=myprint border=1 cellspacing=0 cellpadding=0>";
             if ($var) {
                foreach ($var as $k => $v) {
                        echo '<tr><td valign="top" style="width:40px;background-color:#F0F0F0;">';
-                       echo '<strong>' . $k . ' (' . gettype($v) . ")</strong></td><td>";
+                       #echo '<strong>' . $k . ' (' . gettype($v) . ")</strong></td><td>";
+                       echo "$k</td><td>";
                        self::myprint_r($v);
                        echo "</td></tr>";
                }
@@ -704,13 +717,149 @@ class phphfrontend {
         }
     }
 
+    static function form2hierachial($arr) {
+        $res = [];
+        $res2= [];
+        foreach ($arr as $k => $v) {
+            if (is_numeric($k)) {
+                $val = reset($v);
+                $key = key($v);
+                if (is_array($val)) {
+                    $val2 = reset($val[0]);
+                    $key2 = key($val[0]);
+                    $res2[$key][$key2][] = $val2;
+                } else {
+                    if (isset($res2[$key])) {
+                        $res[] = $res2;
+                        $res2 = [];
+                    }
+                    $res2[$key] = $val;
+                }
+            } elseif(is_array($v)) {
+                $res[$k] = self::form2hierachial($v);
+            } else {
+                $res[$k] = $v;
+            }
+        }
+        $res[] = $res2;
+        return $res;
+    }
+
+    static function flat2hierarchial($arr) {
+        $res = array();
+        foreach ($arr as $k => $v) {
+            $ks = preg_split('/[\/:]/', $k);
+            $vvv = &$res;
+            foreach( $ks as $kkk ) {
+                if (!isset($vvv[$kkk])) { $vvv[$kkk] = array(); }
+                $vvv = &$vvv[$kkk];
+            }
+            if (is_numeric($kkk)) {
+                $vvv['_'] = $v;
+            } else {
+                $vvv = $v;
+            }
+        }
+        return $res;
+    }
+
+    static function tabulize($var, $level = 0, $path = '') {
+        $rowspan = 0;
+        $duplication = 0;
+        $ret = [];
+        $level++;
+        foreach ($var as $k => $v) {
+            $dup = 0;
+            $duplication = is_numeric($k);
+            if (is_array($v)) {
+                list($tr, $rows, $dup) = self::tabulize($v, $level, "$path:$k");
+            } else {
+                $tr = [[['level' => $level, "path" => "$path:$k", "val" => $v ]]];
+                $rows = 1;
+            }
+            array_unshift($tr[0], ['level' => $level, 'dup' => $dup, 'del' => $duplication, 'rows' => $rows, 'val' => $k]);
+            $ret = array_merge($ret, $tr);
+            $rowspan += $rows;
+        }
+        return [$ret, $rowspan, $duplication];
+    }
+
+    static function myprint_r3($table) {
+        list($table) = self::tabulize($table);
+        $res = '';
+        foreach($table as $row) {
+            $tds = '';
+            foreach($row as $col) {
+                $colspan = 10 - $col['level'];
+                $rowspan = isset($col['rows']) ? " rowspan=\"{$col['rows']}\"" : '';
+                $colspan = isset($col['path']) ? " colspan=\"$colspan\"" : '';
+                $key = isset($col['path']) ? " key=\"{$col['path']}\"" : '';
+                $val = chunk_split($col['val'], 84, ' ');
+                $tds .= "<td$rowspan$colspan$key>$val</td>";
+            }
+            $res .= "<tr>$tds</tr>";
+        }
+        return "<table>$res</table>";
+    }
+
+    static function myprint_r2($var, $level = 0, $key = '', $default = true, $dlevel = 0) {
+        $rowspan = 0;
+        $colspan = 10 - $level;
+        $ret = "";
+        $duplication = 0;
+        $dup = 0;
+        if (!$level) { echo "<table class=mytable><tr>\n"; }
+        if ($var) {
+            $level++;
+            $tr = '';
+            foreach ($var as $k => $v) {
+                $defaultKey = preg_replace('/:\d+:/', ':0:', "$key:$k");
+                $dup = 0;
+                $duplication = is_numeric($k);
+                $dlevel = $duplication ? $dlevel + 1 : $dlevel;
+                $cols = $colspan;
+
+                if (is_array($v)) {
+                    list($td, $rows, $dup) = self::myprint_r2($v, $level, "$key:$k", $default, $dlevel);
+                } elseif (is_bool($v)) {
+                    $td = $v ? 'true' : 'false';
+                    $td = "<td colspan=$colspan>$td</td></tr>";
+                    $rows = 1;
+                } else {
+                    $name = "$key:$k"; //preg_replace("/:/", '][', substr("$key:$k", 1));
+                    $rep = '$1';
+                    $name = 'ent['.preg_replace("/(\[\d+\])/", $rep, $name).']';
+
+                    $td = chunk_split($v, 84, ' ');
+                    $td = "<td data-dlevel=\"$dlevel\" data-key=\"$defaultKey\" rowspan=1 colspan=$colspan contenteditable=\"true\"><input type=text name=\"$name\" value=\"$td\"></td></tr>";
+                    //$td = "<td data-key=\"$defaultKey:0\" colspan=$colspan contenteditable=\"true\">$td</td></tr>";
+                    $rows = 1;
+                }
+                $ret .= $tr;
+                //$dup = $duplication ? 'dup' : '';
+                $kd = $k;
+                $ret .= "<td  data-dlevel=\"$dlevel\" data-level=\"$level\" data-dup=\"$dup\" data-del=\"$duplication\" data-key=\"$defaultKey\" rowspan=\"$rows\">$kd</td>";
+                $ret .= "$td\n";
+                $tr = '<tr>';
+                $rowspan += $rows;
+            }
+        } else {
+            return array("<td colspan=$colspan>[]</td></tr>", 1, $duplication);
+        }
+        if ($level == 1) {
+            echo "$ret\n";
+            echo "</table>";
+        }
+        return array($ret, $rowspan, $duplication);
+    }
+
     static function render($template, $content, $super = array('main'))
     {
         if (is_array($content)) {
             extract($content);
         } // Extract the vars to local namespace
         ob_start(); // Start output buffering
-        include(g::$config['templatespath'] . $template . '.phtml'); // Include the file
+        include($template . '.phtml'); // Include the file
         $content = ob_get_contents(); // Get the content of the buffer
         ob_end_clean(); // End buffering and discard
         if ($super) {

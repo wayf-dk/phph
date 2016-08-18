@@ -50,9 +50,16 @@ digraph G {
         }
       }
 
-      document.body.innerHTML += "<h1>Wayf Metadata Flow</h1>";
+      document.body.innerHTML += "<h1></h1>";
       document.body.innerHTML += example("cluster", "svg");
 
+      for (var a of document.querySelectorAll("nav a")) {
+          a.classList.remove('active');
+          paths = a.dataset.paths || '';
+          if (a.pathname == location.pathname || paths.split(' ').indexOf(location.pathname) >= 0) {
+              a.classList.add('active');
+          }
+      }
     </script>
 
   </body>
