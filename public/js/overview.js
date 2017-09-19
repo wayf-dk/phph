@@ -109,11 +109,7 @@ function keywordFilter(termstring, records, aliases) {
   var patterns = {};
   for (var i = 0; i < terms.length; i++) {
     var subterms = terms[i].split(":");
-    if (subterms.length > 1) {
-      // we have a keyname - is it one we use in the records? if not it is part of the searchterm and the key is keywords
-      if (subterms[0] in records[0]) { subterms = [subterms[0], subterms.slice(1).join(":")]; }
-      else {                           subterms = ["keywords", subterms.slice(0).join(":")]; }
-    } else { // no key - use keywords
+    if (subterms.length == 1) {
       subterms.unshift("keywords");
     }
     var not = subterms[1].indexOf("!") === 0;
@@ -134,7 +130,6 @@ function keywordFilter(termstring, records, aliases) {
     if (patterns[subterms[0]] == undefined) { patterns[subterms[0]] = []; }
     patterns[subterms[0]].push({re: new RegExp(subterms[1] , "i"), not: not, op: operator, value: subterms[1]});
   }
-
   var result = [];
   rec: for (i = 0; i < records.length; i++) {
     var found = true;
@@ -145,7 +140,7 @@ function keywordFilter(termstring, records, aliases) {
       if (value == undefined) { found = found && not; continue; } // not found
       var type = typeof value;
       if (type === "boolean") { found = found && value != patterns[key][0]["not"]; continue; }
-      if (type === "string" || type === "integer") { value = [value]; }
+      if (type === "string" || type == 'number') { value = [""+value]; }
       for (var h = 0; h < patterns[key].length; h++) {
         var pfound = false;
         for (var j = 0; j < value.length; j++) {

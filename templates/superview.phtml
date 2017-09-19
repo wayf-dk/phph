@@ -1,24 +1,39 @@
 <section class="flex">
 <?php
-foreach ($superview as $path => $dirs) {
-    print "<section><h3>$path</h3>";
-    foreach ( $dirs as $dir => $mdfiles ) {
+    foreach ( $superview as $type => $mdfiles ) {
+        print "<section><h3>$type</h3>";
         print <<<eob
-        <table class="superview"><tr><th>Feed</th><th>XML</th><th>SPs</th><th>IdPs</th><th>Refresh in</th></tr>
+        <table class="superview"><tr><th>Name</th><th>Type</th><th>SPs</th><th>IdPs</th><th>Refresh in</th></tr>
 eob;
-        foreach($mdfiles as $fed => $mdfile) {
+        foreach($mdfiles as $fed => $exts) {
+            foreach($exts as $ext => $mdfile) {
             extract($mdfile);
+                $test = $testphp = '';
+                if ($type === 'published') {
+                    $test = <<<eof
+ <a href="raw?type=test&fed=$name&ext=$ext" title="$basename">*</a>
+eof;
+                    if ($php) {
+                        $testphp = <<<eof
+ <a href="raw?type=test&fed=$name&ext=php" title="$basename">*</a>
+eof;
+                    }
+                }
+                $phpfile = '';
+                if ($php) {
+                    $phpfile = <<<eof
+ <a href="raw?type=$type&fed=$name&ext=php" title="$basename">php</a>$testphp
+eof;
+                }
             print <<<eob
 <tr>
 	<td>
-		<a href="mdfileview?type=$path&fed=$name">
+		<a href="mdfileview?type=$type&fed=$name">
 			$name
 		</a>
 	</td>
-	<td>
-		<a href="raw?type=$path&fed=$name" title="$basename">
-			XML
-		</a>
+	<td>$phpfile
+		<a href="raw?type=$type&fed=$name&ext=$ext" title="$basename">$ext</a>$test
 	</td>
 	<td>
 		$sps
@@ -32,8 +47,8 @@ eob;
 </tr>
 eob;
         }
-        print "</table>";
     }
+        print "</table>";
     print "</section>";
 }
 ?>

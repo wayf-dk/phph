@@ -28,6 +28,15 @@
 	-->
 	
 	<xsl:template match="md:SPSSODescriptor">
+
+        <xsl:variable name="indices" select="md:ArtifactResolutionService/@index"/>
+        <xsl:variable name="distinct.indices" select="set:distinct($indices)"/>
+        <xsl:if test="count($indices) != count($distinct.indices)">
+            <xsl:call-template name="error">
+                <xsl:with-param name="m">ArtifactResolutionService index values not all different</xsl:with-param>
+            </xsl:call-template>
+        </xsl:if>
+
 		<xsl:variable name="indices" select="md:AssertionConsumerService/@index"/>
 		<xsl:variable name="distinct.indices" select="set:distinct($indices)"/>
 		<xsl:if test="count($indices) != count($distinct.indices)">
@@ -67,6 +76,20 @@
 				<xsl:value-of select='local-name()'/>
 				<xsl:text> Location is not a valid URL: </xsl:text>
 				<xsl:value-of select="mdxURL:whyInvalid(@Location)"/>
+			</xsl:with-param>
+		</xsl:call-template>
+	</xsl:template>
+
+
+	<!--
+        Check for ResponseLocation attributes that aren't valid URLs.
+    -->
+	<xsl:template match="md:*[@ResponseLocation and mdxURL:invalidURL(@ResponseLocation)]">
+		<xsl:call-template name="error">
+			<xsl:with-param name="m">
+				<xsl:value-of select='local-name()'/>
+				<xsl:text> ResponseLocation is not a valid URL: </xsl:text>
+				<xsl:value-of select="mdxURL:whyInvalid(@ResponseLocation)"/>
 			</xsl:with-param>
 		</xsl:call-template>
 	</xsl:template>

@@ -108,12 +108,13 @@ class flatten {
             preg_match('/:(\d+):?/', $key, $d, PREG_OFFSET_CAPTURE, $keyoffset);
             $thisindex = $d[1][0] + 1;
             $keyoffset = $d[1][1];
-            $index = 1;
-            while( $index < $thisindex) {
-                $qq = preg_replace('/#/', $index, $q, 1);
-                self::f2xhandlerepeatingvalues($key, $qq, null, $xp, $context, $keyoffset);
-                $index++;
-            }
+// All this is handled by softquery
+//             $index = 1;
+//             while( $index < $thisindex) {
+//                 $qq = preg_replace('/#/', $index, $q, 1);
+//                 self::f2xhandlerepeatingvalues($key, $qq, null, $xp, $context, $keyoffset);
+//                 $index++;
+//             }
             $index = $thisindex + 1;
             $q = preg_replace('/#/', $thisindex, $q, 1); // PHP arrays starts with 0, xpath with 1
             self::f2xhandlerepeatingvalues($key, $q, $val, $xp, $context, $keyoffset);

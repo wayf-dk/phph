@@ -36,9 +36,15 @@
 			<xsl:if test="ancestor-or-self::md:EntitiesDescriptor">
 				<!--
 					Use an ID if available, otherwise the entityID.
-					No always use entityID
 				-->
-    			<xsl:value-of select="$entity/@entityID"/>
+				<xsl:choose>
+					<xsl:when test="$entity/@ID">
+						<xsl:value-of select="$entity/@ID"/>
+					</xsl:when>
+					<xsl:otherwise>
+						<xsl:value-of select="$entity/@entityID"/>
+					</xsl:otherwise>
+				</xsl:choose>
 				<xsl:text>: </xsl:text>
 			</xsl:if>
 			<xsl:value-of select="$m"/>

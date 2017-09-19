@@ -53,6 +53,9 @@ class softquery
                     $context = $newcontext;
                 }
                 if ($attribute) {
+                    if (preg_match("/^(\w+):(\w+)$/", $attribute, $d)) {
+                        $context->setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:".$d[1], xp::$secapseman[$d[1]]);
+                    }
                     $newcontext = $context->setAttribute($attribute, $value);
                     if ($value === '') { $context = $newcontext; } // if we don't have a value
                 }
@@ -89,6 +92,9 @@ class softquery
                 $before = null; // can only be used once - for the first element
             }
             if ($attribute) {
+                if (preg_match("/^(\w+):(\w+)$/", $attribute, $d)) {
+                    $context->setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:".$d[1], xp::$secapseman[$d[1]]);
+                }
                 $newcontext = $context->setAttribute($attribute, $value);
                 //if ($value === '') { $context = $newcontext; } // if we don't have a value
             }

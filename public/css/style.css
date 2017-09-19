@@ -136,7 +136,9 @@ th, td
 
 td > a
 {
+/*
 	display: block;
+ */
 	color: black;
 	width: auto;
 }

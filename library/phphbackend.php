@@ -78,7 +78,7 @@ class PhphBackEnd {
     // Updates and sets status, takes hierarchy of status messages into consideration
     // If the index of the new log status is larger than the index of the current
     // log status, then update the current status.
-    protected function status($status, $id, $msg)
+    function status($status, $id, $msg)
     {
         if ($status === 'PENDING' || empty($this->current_log_status[$id]) || self::$logstates[$status] > self::$logstates[$this->current_log_status[$id]]) {
             $this->current_log_status[$id] = $status;
@@ -87,16 +87,6 @@ class PhphBackEnd {
             $this->global_log_status = $status;
         }
         syslog(LOG_INFO, "{$this->current_log_status[$id]}: {$this->logtag} Call $id $msg" . g::$config['logsuffix']);
-    }
-
-    static function verifySchema($xp, $schema)
-    {
-        libxml_clear_errors();
-        libxml_use_internal_errors(true);
-        $xp->document->schemaValidate(g::$config['schemapath'] . $schema);
-        $errors = libxml_get_errors();
-        libxml_clear_errors();
-        return $errors;
     }
 
     function getMetadataSources($time, $protocol = 'http')
@@ -177,6 +167,16 @@ class PhphBackEnd {
         return array($buffers, $exit);
     }
 
+    static function verifySchema($xp, $schema)
+    {
+        libxml_clear_errors();
+        libxml_use_internal_errors(true);
+        $xp->document->schemaValidate(g::$config['schemapath'] . $schema);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        return $errors;
+    }
+
     static function check_source($id, $xp)
     {
         $xslt = new XSLTProcessor();
@@ -214,6 +214,17 @@ class PhphBackEnd {
         return $filterederrors;
     }
 
+    static function checkEntity($id, $e) {
+        $newxp = xp::xpe();
+        $doc = $newxp->document;
+        $ents = $doc->createElementNS('urn:oasis:names:tc:SAML:2.0:metadata', 'md:EntitiesDescriptor');
+        $doc->appendChild($ents);
+        $ents->appendChild($doc->importNode($e, true));
+        $schema_errors = self::verifySchema($newxp, 'ws-federation.xsd');
+        $metadata_errors = self::check_source($id, $newxp);
+        return array(sizeof($schema_errors), sizeof($metadata_errors));
+    }
+
     private function checkvalidUntil($validUntil, $xp, $element)
     {
         $vu = $this->optional($xp, '@validUntil', $element);
@@ -231,7 +242,7 @@ class PhphBackEnd {
         return $prefix . $rt;
     }
 
-    static function summary($xp, $context, $id, $type)
+    static function summary($xp, $context, $id, $type, $check)
     {
         $fields = g::$config['summaryfields'];
         $res = array('keywords' => array());
@@ -274,6 +285,15 @@ class PhphBackEnd {
         }
 
         // summaryfields not coming from the configuration or not available from the xml
+        // if modified is set
+        $res['recent'] = false;
+        if (isset($res['modified'])) {
+            $maxbins = 12;
+            $delta = time() - date_create($res['modified'])->getTimestamp();
+            $deltabin = min($maxbins, (int)($delta/(86400*30))); // months (30 days) for now
+            $res['recent'] = substr(str_repeat('x', $maxbins), 0, $maxbins - $deltabin);
+        }
+
         $res['fed'] = $id;
         $res['feedurl'] = g::$config['destinations'][$id]['url'];
         $res['type'] = $type;
@@ -294,12 +314,22 @@ class PhphBackEnd {
 
         $res['keywords'] = array_values(array_unique(array_diff(call_user_func_array('array_merge', $res['keywords']), preg_split('/ *, */', $fields['stopwords']))));
         $res['collisions'] = array();
+
+        if ($check) { list( $res['schemaerrors'], $res['metadataerrors']) = self::checkEntity($id, $context); }
+
         return $res;
     }
 
-    private function createsummary($id, $path, $xp, $schemaerrors, $metadataerrors)
+    private function createsummary($dst, $id, $path, $xp, $schemaerrors, $metadataerrors)
     {
         $byid = array();
+        $oldsummaryfile = $dst['cachepath'] . "summary-$id.json";
+        $oldsummary = array();
+        if (file_exists($oldsummaryfile)) {
+            $oldsummary = json_decode(file_get_contents($oldsummaryfile), true);
+            $oldsummary = $oldsummary['entities'];
+        }
+
         foreach($metadataerrors as $metadataerror) {
             preg_match('/\[ERROR\] (\S+): (.*)$/', $metadataerror->message, $d);
             $byid[$d[1]][] = 1; // just counting for now
@@ -308,10 +338,15 @@ class PhphBackEnd {
         $entities = $xp->query('//md:EntityDescriptor');
         $summary = array();
         foreach($entities as $entity) {
-            $res = self::summary($xp, $entity, $id, 'feed');
-            $entityid = $res['entityid'];
-            $res['metadataerrors'] = '';
-            if (isset($byid[$entityid])) { $res['metadataerrors'] = "".sizeof($byid[$entityid]); }
+            $entityid = $xp->query('@entityID', $entity)->item(0)->nodeValue;
+            $hash = sha1($xp->document->SaveXML($entity));
+            $check = empty($oldsummary[$entityid][0]['hash']) || $oldsummary[$entityid][0]['hash'] != $hash;
+            if ($check) {
+                $res = self::summary($xp, $entity, $id, 'feed', $check);
+            } else { //
+                $res = $oldsummary[$entityid][0];
+            }
+            $res['hash'] = $hash;
             $summary[$entityid][] = $res;
         }
         return $summary;
@@ -323,11 +358,11 @@ class PhphBackEnd {
         $metadata_errors = array();
         if ($checkschema) { // if schemacheck is bypassed all tests are ...
             $schema_errors = self::verifySchema($xp, 'ws-federation.xsd');
-            $this->handle_valid(sizeof($schema_errors) === 0, "schema", $id);
             if ($schema_errors) {
                 self::say("metadata does not validate according to schema. Source: $id, unique error(s):");
                 array_walk($schema_errors, function($a) { PhphBackEnd::say("line: {$a->line}:{$a->column}, error: {$a->message}");});
             }
+            $this->handle_valid(sizeof($schema_errors) === 0, "schema", $id);
 
             if ($checksignature) {
                 if (!$certificate) { $this->handle_valid($certificate, "missingcert", $id); }
@@ -374,7 +409,7 @@ class PhphBackEnd {
 
         foreach ($this->destinations as $id => $dst) {
             $this->destinations[$id]['entities'] = array();
-            $this->destinations[$id]['validUntil'] = $time + (7 * 24 * 60 * 60); // 7 days
+            $this->destinations[$id]['validUntil'] = $time + g::duration2secs($dst['validUntilDelta']);
             $path = $dst['cachepath'] . "feed-$id.xml";
 
             if (empty($dst['url'])) { continue; }
@@ -416,7 +451,7 @@ class PhphBackEnd {
             $certificate = file_exists($file) ? file_get_contents($file) : null;
             list ($schemaerrors, $metadataerrors) = $this->schemasignatureandmdcheck($id, $xp, $entitiesDescriptor, $dst['schemacheck'], $dst['signaturecheck'], $certificate, $dst['metadatacheck']);
 
-            $summary[$id]['entities'] = $this->createsummary($id, $path, $xp, $schemaerrors, $metadataerrors);
+            $summary[$id]['entities'] = $this->createsummary($dst, $id, $path, $xp, $schemaerrors, $metadataerrors);
 
             foreach ($summary[$id]['entities'] as $sumid => $dummy) {
                 $collisions[$sumid][] = $id;
@@ -489,11 +524,23 @@ class PhphBackEnd {
     {
         $creationInstant = gmdate('Y-m-d\TH:i:s', $now). 'Z';
 
+        $filterclasses = array();
         foreach($this->destinations as $id => $dst) {
-            $c = 0;
+            $filterclasses[$dst['filterclass']] = true;
+        }
+
+        foreach ($filterclasses as $filterclass => $dummy) {
+            $filterfunc = $filterclass . '::BEGIN';
+            if (is_callable($filterfunc)) {
+                call_user_func($filterfunc, $this->destinations['BEGIN-END']);
+            }
+        }
+
+        foreach($this->destinations as $id => $dst) {
+            if ($id == "BEGIN-END") { continue; };
             $tmp = !$dst['filename'];
             if ($tmp) {
-                if ($dst['url']) { continue; } // don't save sources that are not published as well
+                //if ($dst['url']) { continue; } // don't save sources that are not published as well
                 //if (empty($dst['filters'])) { continue; }
                 $dst['publishpath'] = $dst['cachepath'];
                 $dst['filename'] = "tmp-$id.xml";
@@ -506,10 +553,7 @@ class PhphBackEnd {
             $entities = $this->get_cached($id);
 
             if (sizeof($entities['entities']) == 1) {
-                    $entityID = $e->getAttribute('entityID');
-                    $seen[$entityID] = 1;
-                    $entitiesDescriptor = $res->appendChild($res->importNode($entities['entities'][0], true));
-                    $c++;
+                $entitiesDescriptor = $res->appendChild($res->importNode($entities['entities'][0], true));
             } else {
     		    $entitiesDescriptor = $res->createElementNS('urn:oasis:names:tc:SAML:2.0:metadata', 'md:EntitiesDescriptor');
 	    	    $res->appendChild($entitiesDescriptor);
@@ -518,17 +562,8 @@ class PhphBackEnd {
                 //$usagePolicy->setAttribute('xml:lang', 'en');
                 //$usagePolicy->appendChild($res->createTextNode('http://www.edugain.org/policy/metadata-tou_1_0.txt'));
 
-                $seen = array();
                 foreach ($entities['entities'] as $n => $e) {
-                    $entityID = $e->getAttribute('entityID');
-
-    //                 if (isset($seen[$entityID])) {
-    //                     self::say("WARNING duplicate entityID found: $entityID\n");
-    //                     continue;
-    //                 }
-                    $seen[$entityID] = 1;
                     $entitiesDescriptor->appendChild($res->importNode($e, true));
-                    $c++;
                 }
 		    }
 
@@ -590,6 +625,13 @@ class PhphBackEnd {
             // Update status for dsts ...
             $errorkeywordsstr =  isset($this->destinations[$id]['errors']) ? join(',', $this->destinations[$id]['errors']) : '';
             $this->status('OK', $id, "->[$errorkeywordsstr] validuntil: $relativeValidUntil days $sps/$idps$xtra");
+        }
+
+        foreach ($filterclasses as $filterclass => $dummy) {
+            $filterfunc = $filterclass . '::END';
+            if (is_callable($filterfunc)) {
+                call_user_func($filterfunc, $this->destinations['BEGIN-END']);
+            }
         }
 
         $duration = round(microtime(true) - $this->starttime, 3);

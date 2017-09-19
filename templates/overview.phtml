@@ -5,8 +5,17 @@
       <div>
         <?php if (isset($type)): ?>
             <div class="feedinfo">Feed: <?= $fed ?>, Type: <?= $type ?>,
-                File: <?php if ($type == 'published' ) { echo "<a href=\"/md/$filename\">$filename</a>"; }
-                      else {echo "File: <a href=\"/raw?type=$type&fed=$fed\">$filename</a>"; }
+                File:
+                <?php
+                if ($type == 'published' ) {
+                    echo "<a href=\"/md/$filename\">$filename</a>";
+                } else {
+                    echo "<a href=\"/raw?type=$type&fed=$fed&exr=xml\">$filename</a>";
+                }
+                if ($phpfilename) {
+                    print " PHP: <a href=\"/raw?type=$type&fed=$fed&ext=php\">$phpfilename</a>";
+                }
+
                 ?>
             </div>
       <?php endif; ?>
@@ -38,13 +47,13 @@
         </thead>
             <tbody>
               <tr v-for="entity in entities.slice(start, end)" track-by="$index">
-                <td><a href="{{ entity.url }}" title="{{ entity.keywords }}" class="no-decoration">{{ entity.displayName }}</a></td>
+                <td><a href="{{ entity.id && 'https://janus.wayf.dk/module.php/janus/editentity.php?eid=' + entity.id.replace(/^[^1-9]+/, '') }}" target="janus" title="{{ entity.keywords }}" class="no-decoration">{{ entity.displayName }}</a></td>
                 <td><a href="{{ entity.url }}" class="no-decoration">{{ entity.displayEntityId }}</a></td>
                 <td><a href="{{ entity.url }}" class="no-decoration">{{ entity.displayRoles }}</a></td>
                 <td><a href="{{ entity.url }}" class="no-decoration">{{ entity.displayEncats }}</a></td>
                 <td><a href="{{ entity.fedurl }}" title="{{ entity.alsoin }}"  class="no-decoration">{{ entity.displayFederation }}</a></td>
                 <td><a href="{{ entity.url }}" class="no-decoration"><span v-if="entity.approved"><i class="fa fa-lg fa-check"></i><span></a></td>
-                <td><a href="{{ entity.url + '#metadataerrors' }}" class="no-decoration">{{entity.metadataerrors}}</td>
+                <td><a href="{{ entity.url + '#metadataerrors' }}" class="no-decoration">{{entity.schemaerrors}}/{{entity.metadataerrors}}</td>
               </tr>
             </tbody>
           </table>
@@ -59,3 +68,5 @@ var groups = <?php echo $buttons; ?>;
 </script>
 <script src="/js/vue.js"></script>
 <script src="/js/overview.js"></script>
+
+"<a target=\"janus\" href=\"https://janus.wayf.dk/module.php/janus/editentity.php?eid={$wayfid}\">

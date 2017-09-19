@@ -127,11 +127,9 @@ class phphfrontend {
         $superview = self::superviewinfo();
 
         $dotview = array();
-        foreach( $superview as $path => $dirs ) {
-            foreach( $dirs as $dir => $ents) {
-                foreach( $ents as $id => $info) {
-                    $dotview[$path][$id] = $info['sps'] . ' / ' . $info['idps'];
-                }
+        foreach( $superview as $path => $ents ) {
+            foreach( $ents as $id => $info) {
+                $dotview[$path][$id] = $info['xml']['sps'] . ' / ' . $info['xml']['idps'];
             }
         }
 
@@ -145,29 +143,33 @@ class phphfrontend {
         // green9 "#f7fcf5" "#e5f5e0" "#c7e9c0" "#a1d99b" "#74c476" "#41ab5d" "#238b45" "#006d2c" "#00441b"
         foreach($srcRankSame as $rs) {
             $x = join(', ', g::$config['destinations'][$rs]['filters']);
+            $s = join(', ', g::$config['destinations'][$rs]['sources']);
             $i = $dotview['feed'][$rs];
-            $viz .= "{ node [label=\"$i\n$rs\n$x\" penwidth=0.5 fillcolor=\"#f7fcf5\",style=filled URL=\"mdfileview?type=feed&fed=$rs\"]  \"x-$rs\"};\n";
+            $viz .= "{ node [label=\"$i\n$rs\n$s\n$x\" penwidth=0.5 fillcolor=\"#f7fcf5\",style=filled URL=\"mdfileview?type=feed&fed=$rs\"]  \"x-$rs\"};\n";
         }
 
         foreach($zzzRankSame as $rs) {
             $x = join(', ', g::$config['destinations'][$rs]['filters']);
+            $s = join(', ', g::$config['destinations'][$rs]['sources']);
             $i = $dotview['tmp'][$rs];
-            $viz .= "{ node [label=\"$i\n$rs\n$x\" penwidth=0.5 fillcolor=\"#e5f5e0\",style=filled URL=\"mdfileview?type=tmp&fed=$rs\"]  \"$rs\"};\n";
+            $viz .= "{ node [label=\"$i\n$rs\n$s\n$x\" penwidth=0.5 fillcolor=\"#e5f5e0\",style=filled URL=\"mdfileview?type=tmp&fed=$rs\"]  \"$rs\"};\n";
         }
 
         foreach($dstRankSame as $rs) {
             $x = join(', ', g::$config['destinations'][$rs]['filters']);
+            $s = join(', ', g::$config['destinations'][$rs]['sources']);
             $i = $dotview['published'][$rs];
             $filename = g::$config['destinations'][$rs]['filename'];
-            $viz .= "{ node [label=\"$i\n$rs\n$x\n$filename\" penwidth=0.5 fillcolor=\"#c7e9c0\",style=filled URL=\"mdfileview?type=published&fed=$rs\"]  \"y-$rs\"};\n";
+            $viz .= "{ node [label=\"$i\n$rs\n$s\n$x\n$filename\" penwidth=0.5 fillcolor=\"#c7e9c0\",style=filled URL=\"mdfileview?type=published&fed=$rs\"]  \"y-$rs\"};\n";
         }
 
         foreach($finalRankSame as $rs) {
             $x = join(', ', g::$config['destinations'][$rs]['filters']);
+            $s = join(', ', g::$config['destinations'][$rs]['sources']);
             $type = g::$config['destinations'][$rs]['filename'] ? 'published' : 'tmp';
             $filename = g::$config['destinations'][$rs]['filename'];
             $i = $dotview[$type][$rs];
-            $viz .= "{ node [label=\"$i\n$rs\n$x\n$filename\" penwidth=0.5 fillcolor=\"#a1d99b\",style=filled  URL=\"mdfileview?type=$type&fed=$rs\"]  \"z-$rs\"};\n";
+            $viz .= "{ node [label=\"$i\n$rs\n$s\n$x\n$filename\" penwidth=0.5 fillcolor=\"#a1d99b\",style=filled  URL=\"mdfileview?type=$type&fed=$rs\"]  \"z-$rs\"};\n";
         }
 
         //print "<pre>"; print_r(g::$config); exit;
@@ -183,11 +185,18 @@ class phphfrontend {
                 $viz .= sprintf("\"%s\" -> \"%s\";\n", $src, $dstid);
             }
             // Draw params dependencies
-            foreach ($dest['params'] as $src) {
-                $x = $src;
-                if (in_array($x, $srcRankSame)) { $src = "x-$x"; }
-                if (in_array($x, $dstRankSame) && $x != $id) { $src = "y-$x"; }
-                $viz .= sprintf("\"%s\" -> \"%s\" [style = dashed];\n", $src, $dstid);
+            $params = array('params', 'unapproved');
+
+            foreach ($params as $param) {
+                foreach ((array)$dest[$param] as $src) {
+                    if (!$src) { continue; }
+                    $x = $src;
+                    $zz = $dstid;
+                    if (in_array($zz, $srcRankSame)) { $zz = "x-$zz"; }
+                    if (in_array($x, $srcRankSame)) { $src = "x-$x"; }
+                    if (in_array($x, $dstRankSame) && $x != $id) { $src = "y-$x"; }
+                    $viz .= sprintf("\"%s\" -> \"%s\" [style = dashed];\n", $src, $zz);
+                }
             }
         }
 
@@ -201,9 +210,10 @@ class phphfrontend {
     }
 
     static function raw__() {
-        extract(g::ex($_GET, 'fed', 'type'));
-        header('content-type: text/xml');
-        readfile(self::fn($fed, $type));
+        extract(g::ex($_GET, 'fed', 'type', 'ext'));
+        $types = ['xml' => 'text/xml', 'php' => 'text/plain; charset=utf-8'];
+        header('content-type: ' . $types[$ext]);
+        readfile(self::fn($fed, $type, $ext));
     }
 
     /**
@@ -331,13 +341,20 @@ class phphfrontend {
 
     static function mdfileview__() {
         extract(g::ex($_GET, 'fed', 'type', 'errs'));
+        $superview = self::superviewinfo();
+
+        $phpfilename = '';
+        if ($superview[$type][$fed]['xml']['php']) {
+            $phpfilename = basename(self::fn($fed, $type, 'php'));
+        }
+
         $filename = basename(self::fn($fed, $type));
 //        $summary = self::summary($type, $fed);
 //        $overview[$fed] = $summary;
         //print "<pre>";    print_r($summary); print "</pre>";
         //print "<pre>";    print_r(json_decode($json, 1)); print "</pre>";
         $buttons = json_encode(g::$config['buttons']);
-        print self::render('overview', compact('buttons', 'fed', 'type', 'filename'));
+        print self::render('overview', compact('buttons', 'fed', 'type', 'filename', 'phpfilename'));
     }
 
     static function overviewjs__($path) {
@@ -378,8 +395,8 @@ class phphfrontend {
         // add xtra entries for client performance testing - remember it is number of entities^x
         //foreach(range(1,4) as $i) foreach($feeds as $feed => $xxx) { $feeds["{$feed}$i"] = $xxx; }
 
-        $json = json_encode($feeds);
-        //print "<pre>";    print_r($feeds); print "</pre>";
+        $json = json_encode($feeds, JSON_PRETTY_PRINT);
+        //print "<pre>"; print $json; print "</pre>"; exit;
         header("Content-type: application/json");
         print self::render('overviewjs', compact('json'), false);
     }
@@ -404,7 +421,7 @@ class phphfrontend {
 
         $xpath = '//md:EntityDescriptor[@entityID="' . $entityID . '"][1]';
         $entity = $xp->query($xpath)->item(0);
-        $summary = PhphBackEnd::summary($xp, $entity, $fed, $type);
+        $summary = PhphBackEnd::summary($xp, $entity, $fed, $type, true);
 
         $formvalues = compact('entityID', 'fed', 'type');
         $formvalues['role'] = $summary['SP'] ? 'SP' : 'IDP';
@@ -533,61 +550,84 @@ class phphfrontend {
 
     }
 
+    static function mdstatus__($path) {
+        $feed = 'wayf-fed-registry-unapproved';
+        $fn = g::$config['destinations'][$feed]['cachepath'] . "status-$feed.json";
+        if (file_exists($fn)) {
+            $status = json_decode(file_get_contents($fn), 1);
+            $entitystatus = $status[$_GET['eid']];
+            $errs = "<ul>";
+            foreach (['mde', 'sce'] as $errtype) {
+                foreach($entitystatus[$errtype] as $err) {
+                    $errs .= "<li>{$err['message']}";
+                }
+            }
+            print $errs;
+        }
+    }
+
     static function superviewinfo($update = true)
     {
         $transforms = array();
 
         $types = array('feed', 'published', 'approved', 'tmp');
+        $exts = array('xml');
 
         $superviewcache = "/tmp/" . g::$instance . "-superview-cache.json";
 
         $superview = array_fill_keys($types, array());
         if (file_exists($superviewcache)) { $superview = json_decode(file_get_contents($superviewcache), 1);  }
         //if ($superview && !$update) { return $superview; }
-
         foreach(g::$config['destinations'] as $id => $dest) {
-            foreach($types as $type) {
-                $mdfile = self::fn($id, $type);
-                if (!$mdfile) { continue; }
-                $pi = pathinfo($mdfile);
-                $path = sha1($pi['dirname']);
-                if (!file_exists($mdfile)) {
-                    unset($superview[$type][$path][$id]);
-                    continue;
-                }
-                $schemaerrors = $metadataerrors = '-';
-                if ($type === 'feed') {
-                    $fn = $dest['cachepath'] . "summary-$id.json";
-                    if (file_exists($fn)) {
-                        $summary = json_decode(file_get_contents($fn), 1);
-                        $schemaerrors   = $summary['schemaerrors'];
-                        $metadataerrors = $summary['metadataerrors'];
+           foreach($types as $type) {
+                foreach($exts as $ext) {
+                    $mdfile = self::fn($id, $type, $ext);
+                    if (!$mdfile) { continue; }
+                    $pi = pathinfo($mdfile);
+                    //$path = sha1($pi['dirname']);
+                    if (!file_exists($mdfile)) {
+                        unset($superview[$type][$id][$ext]);
+                        continue;
                     }
+                    //print("$mdfile\n"); continue;
+                    $schemaerrors = $metadataerrors = '-';
+                    if ($type === 'feed') {
+                        $fn = $dest['cachepath'] . "summary-$id.json";
+                        if (file_exists($fn)) {
+                            $summary = json_decode(file_get_contents($fn), 1);
+                            $schemaerrors   = $summary['schemaerrors'];
+                            $metadataerrors = $summary['metadataerrors'];
+                        }
+                    }
+                    if (empty($superview[$type][$id][$ext]['mtime'])) {
+                        $superview[$type][$id][$ext]['mtime'] = 0;
+                    }
+                    $mtime = filemtime($mdfile);
+                    if ($mtime > $superview[$type][$id][$ext]['mtime']) {
+                        if ($ext === 'xml') {
+                            $xp = xp::xpFromFile($mdfile);
+                            $doc = $xp->document;
+                            //foreach($xp->query('/md:EntitiesDescriptor/ds:Signature/ds:SignedInfo/ds:Reference/ds:Transforms/ds:Transform/@Algorithm') as $t) {
+                                //$transforms[$t->value][$basename] = 1;
+                            //}
+                            $idps = $xp->query('//md:EntityDescriptor/md:IDPSSODescriptor', $doc)->length;
+                            $sps = $xp->query('//md:EntityDescriptor/md:SPSSODescriptor', $doc)->length;
+                        }
+                        $phpfile = self::fn($id, $type, 'php');
+                        $superview[$type][$id][$ext] =
+                            array('name'   => $id,
+                                  'idps'   => $idps,
+                                  'sps'    => $sps,
+                                  'mtime'  => $mtime,
+                                  'fn'     => $mdfile,
+                                  'basename' => basename($mdfile),
+                                  'serrs'  => $schemaerrors,
+                                  'mderrs' => $metadataerrors,
+                                  'url'    => $dest['url'],
+                                  'php'    => $phpfile  && file_exists($phpfile));
+                    }
+                    $superview[$type][$id][$ext]['delta'] = self::relativeTime(time(), $superview[$type][$id][$ext]['mtime']);
                 }
-                if (empty($superview[$type][$path][$id]['mtime'])) {
-                    $superview[$type][$path][$id]['mtime'] = 0;
-                }
-                $mtime = filemtime($mdfile);
-                if ($mtime > $superview[$type][$path][$id]['mtime']) {
-                    $xp = xp::xpFromFile($mdfile);
-                    $doc = $xp->document;
-                    //foreach($xp->query('/md:EntitiesDescriptor/ds:Signature/ds:SignedInfo/ds:Reference/ds:Transforms/ds:Transform/@Algorithm') as $t) {
-                        //$transforms[$t->value][$basename] = 1;
-                    //}
-                    $idps = $xp->query('//md:EntityDescriptor/md:IDPSSODescriptor', $doc)->length;
-                    $sps = $xp->query('//md:EntityDescriptor/md:SPSSODescriptor', $doc)->length;
-                    $superview[$type][$path][$id] =
-                        array('name'   => $id,
-                              'idps'   => $idps,
-                              'sps'    => $sps,
-                              'mtime'  => $mtime,
-                              'fn'     => $mdfile,
-                              'basename' => basename($mdfile),
-                              'serrs'  => $schemaerrors,
-                              'mderrs' => $metadataerrors,
-                              'url'    => $dest['url']);
-                }
-                $superview[$type][$path][$id]['delta'] = self::relativeTime(time(), $superview[$type][$path][$id]['mtime']);
             }
         }
         sfpc::file_put_contents($superviewcache, json_encode($superview));
@@ -617,7 +657,7 @@ class phphfrontend {
         $c = 0;
         foreach($entities as $entity) {
             $c++;
-            $res = PhphBackEnd::summary($xp, $entity, $fed, $type);
+            $res = PhphBackEnd::summary($xp, $entity, $fed, $type, false);
             $res['type'] = $type;
             $res['collisions'] = array();
             $res['schemaerrors'] = $res['metadataerrors'] = '-';
@@ -629,13 +669,17 @@ class phphfrontend {
         return $summary;
     }
 
-    static function fn($fed, $type)
+    static function fn($fed, $type, $ext = 'xml')
     {
         $dest = g::$config['destinations'][$fed];
         $fn = null;
-        if ($type === 'published' && $dest['filename']) { $fn = $dest['publishpath'] . $dest['filename']; }
-        elseif (in_array($type, array('feed', 'tmp'))) { $fn = $dest['cachepath'] . "$type-$fed.xml"; }
-        elseif (in_array($type, array('approved'))) { $fn = $dest['approvedpath'] . "$type-$fed.xml"; }
+        // try the auto name $fed.$ext first - only if not found try the legacy given name
+        if ($type === 'published' && $dest['filename'] && $ext === 'xml') { $fn = $dest['publishpath'] . $dest['filename']; }
+        elseif ($type === 'published') { $fn = $dest['publishpath'] . "$fed.$ext"; }
+        elseif ($type === 'test' && $dest['filename']  && $ext === 'xml') { $fn = $dest['testpublishpath'] . $dest['filename']; }
+        elseif ($type === 'test') { $fn = $dest['testpublishpath'] . "$fed.$ext"; }
+        elseif (in_array($type, array('feed', 'tmp'))) { $fn = $dest['cachepath'] . "$type-$fed.$ext"; }
+        elseif (in_array($type, array('approved'))) { $fn = $dest['approvedpath'] . "$type-$fed.$ext"; }
         return $fn;
     }
 
@@ -649,6 +693,8 @@ class phphfrontend {
 
         $cmd = isset($path[0]) ? $path[0] : $defaultcmd;
 
+        $cmd = str_replace('.', '_', $cmd);
+
         $function = "phphfrontend::$cmd" . '__';
         $module = '../modules/' . $cmd . '.php';
 
@@ -657,6 +703,7 @@ class phphfrontend {
         } elseif (file_exists($module)) {
             require $module;
         } else {
+            header("HTTP/1.0 404 Not Found");
             die("Unknown function: '$function' or module: '$module'");
         }
     }
